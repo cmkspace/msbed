@@ -95,7 +95,7 @@ def test_input_validation_effective() -> None:
 # ---------------------------------------------------------------------------
 
 DESIGN_T = 288.15            # K, 15°C inlet
-DESIGN_P = 6.0928e5          # Pa, 5 bar(g) + 1.013 bar atm
+DESIGN_P = 6.01325e5         # Pa = (5.0 bar(g) + 1.01325 bar) * 1e5
 DESIGN_U = 0.201             # m/s, DBD §5 superficial velocity
 
 

@@ -27,7 +27,7 @@ def op() -> OperatingConditions:
     return OperatingConditions(
         mode="adsorption",
         flow_nm3h=200.0,
-        P_op_Pa=6.0928e5,
+        P_op_Pa=6.01325e5,
         T_in_K=288.15,
         y_h2o_in=2823.07e-6,
         y_co2_in=400e-6,
@@ -75,7 +75,7 @@ def test_operating_conditions_rejects_bad_mole_fractions() -> None:
         OperatingConditions(
             mode="adsorption",
             flow_nm3h=200.0,
-            P_op_Pa=6.0928e5,
+            P_op_Pa=6.01325e5,
             T_in_K=288.15,
             y_h2o_in=0.6,
             y_co2_in=0.5,  # sum > 1
@@ -87,7 +87,7 @@ def test_operating_conditions_rejects_bad_mode() -> None:
         OperatingConditions(
             mode="depressurize",  # type: ignore[arg-type]
             flow_nm3h=200.0,
-            P_op_Pa=6.0928e5,
+            P_op_Pa=6.01325e5,
             T_in_K=288.15,
             y_h2o_in=0.0,
             y_co2_in=0.0,
