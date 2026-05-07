@@ -1,0 +1,102 @@
+# Adsorbent Isotherm & Kinetic Parameters
+#
+# Literature-based parameters. Values marked TODO must be verified
+# from referenced papers before final simulation runs.
+
+# ============================================================
+# Activated Alumina (H₂O adsorption)
+# Toth Isotherm: q = q_m·b·P / [1+(b·P)^t]^(1/t)
+# ============================================================
+alumina_h2o_toth:
+  reference: "Serbezov & Sotirchos (1998), Desai et al. (1992)"
+  notes: |
+    These parameters are placeholder values. Final values must be
+    extracted from referenced literature in Phase 2 Week 1.
+  
+  # Saturation capacity
+  q_m0_mol_kg: 13.0              # TODO: verify from Serbezov 1998
+  chi_qm: 0.0                    # T-dependence of q_m (often 0)
+  T_ref_K: 298.15
+  
+  # Affinity parameter
+  b0_Pa_inv: 1.0e-9              # TODO: verify
+  delta_H_J_mol: 54000           # heat of adsorption (J/mol)
+  
+  # Heterogeneity parameter
+  t_heterogeneity: 0.45          # TODO: verify (typical 0.3~0.6)
+  
+  # Validity range
+  T_range_K: [273, 423]
+  P_h2o_range_Pa: [10, 5000]
+
+# ============================================================
+# Zeolite 13X (CO₂ adsorption)
+# Langmuir Isotherm: q = q_m·b·P / (1 + b·P)
+# ============================================================
+zeolite_13x_co2_langmuir:
+  reference: "Cavenati, Grande, Rodrigues (2004)"
+  citation: "J. Chem. Eng. Data 49, 1095-1101 (2004)"
+  
+  # Saturation capacity
+  q_m_mol_kg: 5.5
+  
+  # Affinity parameter (temperature-dependent via van't Hoff)
+  b0_Pa_inv: 2.4e-7              # pre-exponential
+  delta_H_J_mol: 36000           # heat of adsorption (J/mol)
+  
+  # Validity range
+  T_range_K: [298, 348]
+  P_co2_range_Pa: [100, 500000]
+
+# ============================================================
+# Mass Transfer Coefficients (LDF via Glueckauf)
+# k_LDF = 15·D_eff / r_p²
+# D_eff = ε_p · D_m / τ
+# ============================================================
+mass_transfer:
+  alumina:
+    particle_radius_m: 0.0015     # 3 mm bead → r=1.5 mm
+    particle_porosity: 0.40
+    tortuosity: 3.0
+    notes: "Macropore diffusion controlling"
+  
+  zeolite_13x:
+    particle_radius_m: 0.0008     # 1.6 mm bead → r=0.8 mm
+    particle_porosity: 0.35
+    tortuosity: 3.0
+    notes: "Combined macropore + micropore. 1차 근사로 macropore만"
+
+# ============================================================
+# Axial Dispersion (Wakao-Funazkri correlation)
+# D_ax/D_m = 20 + 0.5·Sc·Re
+# ============================================================
+axial_dispersion:
+  correlation: "Wakao-Funazkri (1978)"
+  reference: "Chem. Eng. Sci. 33, 1375 (1978)"
+  formula: "D_ax / D_m = 20 + 0.5 * Sc * Re"
+
+# ============================================================
+# Heat Transfer
+# ============================================================
+heat_transfer:
+  axial_thermal_conductivity_W_m_K: 0.5    # effective bed value
+  wall_heat_transfer_U_W_m2_K: 5.0         # to ambient (insulated assumption)
+  ambient_temperature_K: 298.15
+
+# ============================================================
+# Molecular Diffusivities (will be calculated by Fuller eq.)
+# Reference values at 298 K, 1 atm for sanity check
+# ============================================================
+molecular_diffusivity_reference:
+  h2o_in_air_298K_1atm_m2_s: 2.6e-5
+  co2_in_air_298K_1atm_m2_s: 1.6e-5
+  notes: "Use Fuller equation for actual T, P scaling"
+
+# ============================================================
+# TODO List for Phase 2 Week 1
+# ============================================================
+todo:
+  - "Verify Alumina Toth parameters from Serbezov & Sotirchos (1998)"
+  - "Cross-check 13X Langmuir parameters at 25°C, 400 ppm CO₂"
+  - "Add competitive isotherm if Phase 2 results suggest interaction effects"
+  - "Validate LDF values against Glueckauf-Coates dual-resistance if simple LDF inadequate"

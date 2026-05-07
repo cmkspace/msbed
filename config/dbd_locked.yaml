@@ -1,0 +1,176 @@
+# MS BED Pilot — Design Basis Document (LOCKED v1.0)
+#
+# This file is the Single Source of Truth (SSOT) for all design parameters.
+# All Python modules in apps/ must read from this file.
+# Changing any value here propagates through all calculations.
+#
+# Date locked: 2026-05-06
+# Status: Phase 1 complete, Phase 2 active
+
+meta:
+  version: "1.0"
+  date_locked: "2026-05-06"
+  project: "MS BED Pilot 200 Nm³/h"
+  status: "Phase 1 complete, Phase 2 active"
+
+# ============================================================
+# Process Conditions (DBD-locked)
+# ============================================================
+process:
+  flow_nm3h: 200.0              # standard flow (0°C, 1 atm)
+  pressure_gauge_bar: 5.0       # operating gauge pressure
+  pressure_atm_bar: 1.01325     # atmospheric pressure
+  temperature_in_C: 15.0        # column inlet temperature
+  temperature_std_C: 0.0        # Nm³ reference temperature
+  rh_inlet_pct: 100.0           # relative humidity at inlet (saturated)
+  co2_in_ppm: 400.0             # inlet CO₂ concentration
+  co2_out_ppm_target: 0.1       # outlet CO₂ target (ASU-grade)
+  h2o_out_ppm_target: 0.1       # outlet H₂O target
+
+# ============================================================
+# Cycle Configuration (Twin-bed TSA)
+# ============================================================
+cycle:
+  adsorption_time_h: 4.0
+  heating_time_h: 2.0
+  cooling_time_h: 1.5
+  buffer_time_h: 0.5
+  regen_temperature_C: 200.0    # peak regeneration temperature
+  regen_gas_ratio: 0.30         # regen flow / feed flow
+  regen_gas_type: "dry_air"
+  num_columns: 2
+  operation_mode: "alternating" # twin-bed alternating
+
+# ============================================================
+# Column Geometry (from Phase 1)
+# ============================================================
+column:
+  diameter_m: 0.250             # selected DN250
+  total_length_m: 2.100         # bed + free space
+  bed_height_m: 1.700           # alumina + 13X
+  alumina_height_m: 0.925
+  zeolite_13x_height_m: 0.776
+  free_space_m: 0.400           # top + bottom distributors
+  material: "STS304"
+  design_pressure_bar_g: 7.5    # 1.5 × P_op (KGS AC111)
+  void_fraction: 0.38
+
+# ============================================================
+# Adsorbent Loading (from Phase 1, conservative)
+# ============================================================
+adsorbent_mass:
+  alumina_kg_per_column: 36.3
+  zeolite_13x_kg_per_column: 25.1
+  total_kg_per_column: 61.4
+  total_kg_twin_bed: 122.9
+  safety_factor: 1.20           # over-design factor applied
+
+# ============================================================
+# Adsorbent Properties (conservative assumptions)
+# ============================================================
+adsorbent_properties:
+  alumina:
+    name: "Activated Alumina F-200 or equivalent"
+    dynamic_loading_kg_per_kg: 0.06    # 6 wt% (conservative)
+    bulk_density_kg_m3: 800
+    heat_capacity_kJ_kg_K: 0.92
+    particle_diameter_m: 0.003          # 3 mm beads
+    heat_of_adsorption_kJ_kg_h2o: 3000
+    
+  zeolite_13x:
+    name: "Zeolite 13X beads/pellets"
+    dynamic_loading_kg_per_kg: 0.03    # 3 wt% (conservative)
+    bulk_density_kg_m3: 660
+    heat_capacity_kJ_kg_K: 0.96
+    particle_diameter_m: 0.0016         # 1.6 mm beads
+    heat_of_adsorption_kJ_kg_co2: 700
+
+# ============================================================
+# Gas Properties (Air at operating conditions)
+# ============================================================
+gas:
+  air_mw_kg_kmol: 28.96
+  h2o_mw_kg_kmol: 18.015
+  co2_mw_kg_kmol: 44.01
+  air_cp_kJ_kg_K: 1.005
+  air_cp_volumetric_kJ_Nm3_K: 1.297
+  air_viscosity_Pa_s: 1.81e-5
+  gamma_ratio: 1.40             # specific heat ratio
+  steel_cp_kJ_kg_K: 0.50        # STS304
+  molar_volume_stp_Nm3_kmol: 22.414
+
+# ============================================================
+# Antoine Equation (Water, °C, mmHg)
+# log10(P_sat,mmHg) = A − B/(C+T)
+# ============================================================
+antoine_water:
+  A: 8.07131
+  B: 1730.63
+  C: 233.426
+  valid_range_C: [1, 100]
+
+# ============================================================
+# Engineering Safety Factors
+# ============================================================
+safety_factors:
+  adsorbent_oversize: 1.20
+  compressor_motor_margin: 1.15
+  heater_capacity_margin: 1.20
+  design_pressure_factor: 1.50  # KGS AC111
+  compressor_isentropic_efficiency: 0.70
+  heat_loss_factor: 1.15
+
+# ============================================================
+# Equipment Sizing (from Phase 1 calculation)
+# ============================================================
+equipment:
+  compressor:
+    type: "Oil-free screw"
+    motor_power_kW: 27.5
+    pressure_ratio: 6.92
+    max_discharge_temp_C: 100   # spec requirement (with after-cooler)
+    suction_temp_C: 20
+    
+  heater:
+    type: "Electric SUS resistance heater"
+    rated_power_kW: 5
+    duration_per_cycle_h: 2.0
+    peak_temperature_C: 200
+    watt_density_max_W_cm2: 5
+    
+  valves:
+    count: 8                     # to 10
+    type: "Pneumatic ball valve, automated"
+    
+  cooling_tower:
+    type: "After-cooler + chiller (integrated)"
+    target_outlet_temp_C: 15
+
+# ============================================================
+# Adsorption Load (from Phase 1 calculation)
+# ============================================================
+loads:
+  h2o_inlet_ppm: 2823.07          # Antoine at 5 bar·15°C·100% RH
+  h2o_kg_per_h: 0.4538
+  h2o_kg_per_cycle: 1.8152
+  co2_kg_per_h: 0.1571
+  co2_kg_per_cycle: 0.6283
+  air_mass_flow_kg_h: 258.41
+  actual_volumetric_flow_m3_h: 35.55  # at 5 bar, 15°C
+
+# ============================================================
+# Phase 2 Simulation Parameters
+# ============================================================
+simulation:
+  grid_points: 100
+  layer_split_fraction: 0.544    # alumina_height / bed_height
+  numerical_method: "MOL_BDF"    # Method of Lines + BDF
+  rtol: 1.0e-6
+  atol: 1.0e-9
+  num_cycles_target: 10
+  stabilization_tolerance_pct: 5.0
+  
+  sensitivity_matrix:
+    ghsv_factors: [0.5, 1.0, 1.5]
+    regen_temp_C: [150, 180, 200]
+    cycle_time_h: [3.0, 4.0, 5.0]

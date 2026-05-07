@@ -1,0 +1,98 @@
+[project]
+name = "ms-bed-pilot"
+version = "0.1.0"
+description = "MS BED Pilot 200 Nm³/h — TSA simulation and engineering"
+requires-python = ">=3.11,<3.13"
+authors = [
+    {name = "MS BED Engineering Team"}
+]
+
+dependencies = [
+    # Core scientific computing
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "pandas>=2.1",
+    
+    # Visualization
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+    
+    # Configuration
+    "pyyaml>=6.0",
+    "pydantic>=2.5",
+    
+    # Excel I/O (for Phase 1 input + sensitivity output)
+    "openpyxl>=3.1",
+    
+    # Progress / CLI
+    "tqdm>=4.66",
+    "rich>=13.7",
+    "typer>=0.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.1.6",
+    "mypy>=1.7",
+    "ipykernel>=6.27",     # for notebooks during exploration
+    "jupyter>=1.0",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["apps"]
+
+# ============================================================
+# Pytest
+# ============================================================
+[tool.pytest.ini_options]
+testpaths = ["apps"]
+python_files = "test_*.py"
+python_functions = "test_*"
+addopts = [
+    "--strict-markers",
+    "-v",
+    "--tb=short",
+]
+markers = [
+    "slow: marks tests that take > 5 seconds",
+    "integration: integration tests (PDE solver)",
+    "literature: tests against literature data",
+]
+
+# ============================================================
+# Ruff (linter + formatter)
+# ============================================================
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # bugbear
+    "UP",   # pyupgrade
+    "N",    # pep8-naming
+]
+ignore = [
+    "N803",  # allow non-snake-case args (physical variable names: T, P, etc.)
+    "N806",  # allow non-snake-case local vars
+]
+
+# ============================================================
+# Mypy
+# ============================================================
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false  # gradually enable
+ignore_missing_imports = true
