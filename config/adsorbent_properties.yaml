@@ -96,13 +96,66 @@ mass_transfer:
     particle_radius_m: 0.0015     # 3 mm bead → r=1.5 mm
     particle_porosity: 0.40
     tortuosity: 3.0
-    notes: "Macropore diffusion controlling"
-  
+
+    # Dual-resistance internal term (DD-010).
+    # AA lacks well-defined micropores; this is an EMPIRICAL surrogate for
+    # the lumped non-macropore resistance (surface diffusion + binding kinetics)
+    # fit to literature k_LDF measurements.
+    k_internal_s_inv: 0.5
+    k_internal_provenance: "EMPIRICAL — surrogate fit to Serbezov 1998 / Bonnissel et al. literature k_LDF"
+    k_internal_validity: "Provisional, replace with measured k_LDF in Phase 6"
+    notes: |
+      Mass transfer dominated by macropore + surface diffusion + binding
+      kinetics (no clean micropore). Dual-resistance combination:
+        1/k_LDF = 1/k_macro + 1/k_internal
+      with k_macro = 15·D_eff/r_p² and k_internal = 0.5 s⁻¹ (empirical).
+      See DD-010.
+
+    calibrated_k_ldf:
+      design_point:
+        T_K: 288.15
+        P_Pa: 6.0928e5
+        u_superficial_m_s: 0.201
+      computed_k_macro_s_inv: 3.49
+      computed_k_internal_s_inv: 0.5
+      computed_k_LDF_s_inv: 0.437
+      allowed_range_s_inv: [0.001, 1.0]
+      mtz_width_m: 0.460
+      cells_in_mtz_at_n50_per_layer: 24.4
+      status: "PROVISIONAL — AA k_internal pending Phase 6 measured k_LDF"
+      enforced_by: "phase2_simulation.ldf_kinetics.sanity_check_at_design_point()"
+
   zeolite_13x:
     particle_radius_m: 0.0008     # 1.6 mm bead → r=0.8 mm
     particle_porosity: 0.35
     tortuosity: 3.0
-    notes: "Combined macropore + micropore. 1차 근사로 macropore만"
+
+    # Dual-resistance internal term (DD-010).
+    # 13X k_micro is mechanistic via Glueckauf using Yang 1987 typical
+    # intracrystalline diffusion: k_micro = 15·(D_c/r_c²) with D_c/r_c² ≈ 0.01 s⁻¹.
+    D_c_over_rc2_s_inv: 0.01
+    D_c_provenance: "Yang (1987) typical value for CO₂ micropore diffusion in 13X"
+    k_internal_s_inv: 0.15        # = 15 · D_c_over_rc2
+    k_internal_provenance: "MECHANISTIC — Glueckauf micropore: k_micro = 15·(D_c/r_c²)"
+    notes: |
+      Combined macropore + micropore (Ruthven 1984 dual-resistance):
+        1/k_LDF = 1/k_macro + 1/k_internal
+      k_internal is the Glueckauf micropore rate from Yang 1987 typical
+      D_c/r_c² for CO₂ in 13X crystallites. See DD-010.
+
+    calibrated_k_ldf:
+      design_point:
+        T_K: 288.15
+        P_Pa: 6.0928e5
+        u_superficial_m_s: 0.201
+      computed_k_macro_s_inv: 6.75
+      computed_k_internal_s_inv: 0.15
+      computed_k_LDF_s_inv: 0.147
+      allowed_range_s_inv: [0.005, 5.0]
+      mtz_width_m: 1.370
+      cells_in_mtz_at_n50_per_layer: 86.5
+      status: "PROVISIONAL — D_c/r_c² is Yang 1987 typical; refine if 13X grade differs"
+      enforced_by: "phase2_simulation.ldf_kinetics.sanity_check_at_design_point()"
 
 # ============================================================
 # Axial Dispersion (Wakao-Funazkri correlation)

@@ -200,6 +200,78 @@
 
 ---
 
+## DD-010: LDF dual-resistance correction (mechanistic 13X + empirical AA)
+
+- **Date**: 2026-05-07
+- **Phase**: 2 (Simulation — Week 1)
+- **Decision**: PHASE2_SPEC §2.3 단순 Glueckauf 식을 Ruthven 1984 dual-resistance 형식으로 보강. 13X는 mechanistic Yang 1987 micropore (D_c/r_c² = 0.01 s⁻¹), AA는 empirical surface-diffusion proxy (k_internal = 0.5 s⁻¹) 적용.
+
+### Issue
+PHASE2_SPEC §2.3의 단순 macropore-only Glueckauf `k = 15·D_eff/r_p²`을 설계조건(T=288.15 K, P=6.013 bar(a), u=0.201 m/s)에 적용하면 비현실적으로 큰 k_LDF:
+
+| 흡착제 | macropore-only k_LDF | 사용자 기대 | 문헌 측정 | 괴리 |
+|---|---|---|---|---|
+| AA (H₂O) | 3.49 s⁻¹ | [0.001, 1] | 0.05–0.5 | ~7× 과다 |
+| 13X (CO₂) | 6.75 s⁻¹ | [0.005, 5] | 0.05–2 | ~1.4× 과다 |
+
+원인: 단순 Glueckauf는 평형 기울기와 micropore/surface 저항을 무시한 macropore 상한. 강흡착 매체에서는 추가 저항이 dominant.
+
+추가로 PDE 수치안정성 측면에서 k_LDF=6.75 s⁻¹는 MTZ 폭 ~3 cm로 N=100 격자(Δz≈1.7 cm)에서 1.8 cells에 불과 → 격자의존성 심각.
+
+### Alternatives
+- **(A-정통)** Ruthven 1984 dual-resistance + 정통 Glueckauf form (k_micro = 15·D_c/r_c²)
+- (A-lumped) 동일하나 k_micro = D_c/r_c² (factor 15 미포함) → 13X k_LDF=0.01로 MTZ가 컬럼보다 김 (gradient 흐려짐)
+- (B) macropore-only 유지 + Rule 6 범위 [0.001, 50] 확장 → N≥200 격자 필요
+
+### Choice
+**(A-정통)** — 양 흡착제 dual-resistance 적용:
+- **13X**: k_macro = 6.75 ⊕ k_micro = 15·(D_c/r_c²) = 0.15 → **k_LDF = 0.147 s⁻¹** (mechanistic)
+- **AA**: k_macro = 3.49 ⊕ k_internal = 0.5 → **k_LDF = 0.437 s⁻¹** (empirical surrogate)
+
+### Rationale
+- 물리적 정합 — Ruthven §6.7 정통 형식.
+- **13X는 mechanistic**: Yang 1987의 D_c/r_c² ≈ 0.01 s⁻¹은 zeolite 결정자 척도에서 NMR/chromatography로 측정 가능한 양.
+- **AA는 admitted-empirical**: AA에는 명확한 micropore가 없어 정통 dual-resistance가 직접 적용되지 않음. 0.5 s⁻¹은 Serbezov 1998 / Bonnissel 등 실측 k_LDF에 맞춘 surrogate.
+- PDE 수치안정 — MTZ 폭 0.46 m (AA) / 1.37 m (13X). N=100(50/50 layered) 격자에서 24.4 / 86.5 cells에 분포. 27 case 극단(GHSV 1.5×)에서도 PASS.
+- (B)는 격자 N=200 이상 필요 → 5N=1000 ODE × N_per_layer=100 → solve_ivp 비용 4배 이상.
+
+### Implementation
+1. `apps/phase2_simulation/ldf_kinetics.py` (NEW):
+   - `molecular_diffusivity(T, P, species)` — Fuller-Schettler-Giddings
+   - `effective_diffusivity(D_m, ε_p, τ)` — macropore D_e = ε_p·D_m/τ
+   - `k_ldf_glueckauf(D_eff, r_p)` — 15·D_eff/r_p²
+   - `compute_ldf_for_adsorbent(name, T, P)` — dual-resistance, AA empirical 표시 docstring
+   - `estimate_mtz_width(u, k_LDF)` — u/k 추정
+   - `check_grid_resolution(...)` — PASS / WARN / FAIL + recommended N
+   - `sanity_check_at_design_point()` — Rule 6 자동 게이트
+2. `config/adsorbent_properties.yaml`:
+   - `mass_transfer.alumina`: `k_internal_s_inv = 0.5`, `k_internal_provenance = "EMPIRICAL …"`, `k_internal_validity`, `calibrated_k_ldf` 메타데이터 블록
+   - `mass_transfer.zeolite_13x`: `D_c_over_rc2_s_inv = 0.01` + `D_c_provenance` (Yang 1987), `k_internal_s_inv = 0.15`, `k_internal_provenance = "MECHANISTIC …"`, `calibrated_k_ldf` 메타데이터
+3. `apps/phase2_simulation/tests/test_ldf_kinetics.py` — Fuller/Glueckauf/effective unit + design-point + MTZ + grid resolution + provenance distinction 테스트
+4. `CLAUDE.md` Rule 6 — LDF 게이트, mechanistic/empirical 구분, grid resolution 체크 명시
+
+### Status
+**PROVISIONAL** — pending Phase 6 experimental k_LDF for AA, and 13X grade-specific D_c/r_c² verification.
+
+### Validation
+- 1차: `sanity_check_at_design_point()` — k_LDF 범위 + grid resolution + 27 case 극단 GHSV 1.5×
+- 2차: `run_breakthrough.py`에서 4h 사이클 breakthrough 시각이 Phase 1 엑셀과 ±10% 이내인지 확인 (Phase 2 통합검증 게이트)
+- 3차: Phase 6 시험 측정 k_LDF와 ±50% 이내 정합 (특히 AA의 0.5 s⁻¹ 검증)
+
+### Known Limitations
+- **AA k_internal = 0.5 s⁻¹ is empirical, not mechanistic.** Sensitivity of breakthrough curves to AA k_LDF in [0.1, 1.0] s⁻¹ range should be tested in `run_breakthrough.py`.
+- If breakthrough timing in Phase 1 consistency check is highly sensitive to this value, must be calibrated against experimental data before Phase 3.
+- 13X k_micro relies on Yang 1987 typical D_c/r_c²; verify with manufacturer or literature for the chosen 13X grade if breakthrough behavior is sensitive to this value.
+- MTZ estimation `u/k` is a Henry-regime approximation; for nonlinear isotherms (Langmuir, Toth) the actual front shape is steeper. Grid resolution check is therefore conservative for our system (favorable isotherm), but should be re-validated post-PDE solve.
+
+### Lessons Learned
+- Single-resistance Glueckauf `k = 15·D_eff/r_p²` is a *macropore upper bound*, not a measured k_LDF. For strongly-adsorbing media (13X-CO₂, AA-H₂O), micropore/internal resistance is comparable or dominant.
+- **Mechanistic vs empirical distinction must be tracked at the parameter level in YAML** (`*_provenance` field), not just module-level. Avoids confusion between Yang 1987 D_c/r_c² (measurable) and Serbezov surrogate (curve-fit).
+- PDE numerical stability is upstream of physical accuracy: a k_LDF that is "too physical" but yields MTZ ≪ Δz produces noisy gradients regardless of isotherm correctness. Grid resolution must be a first-class sanity gate (Rule 6.7).
+- The 27-case sensitivity matrix (GHSV ±50%, T_regen, t_cycle) extends Rule 6 reach: design-point PASS is necessary but not sufficient — extreme of sweep must also be validated.
+
+---
+
 ## Template for New Decisions
 
 ```markdown

@@ -55,13 +55,20 @@
 - 한 번에 하나의 작업 결정만 확인 후 진행 (REX와 동일 패턴)
 - 큰 변경사항은 사용자 승인 후 진행
 
-### Rule 6 — 등온식 파라미터 검증 게이트
-새로운 등온식 파라미터를 도입하거나 변경할 때:
-1. 반드시 `apps/phase2_simulation/isotherms.py::sanity_check_at_design_point()`를 통과해야 함
-2. 통과 못 하면 코드 작성 중단, 사용자에게 보고
-3. 임의 placeholder 값 사용 금지 (반드시 ±50% 이내 검증; Langmuir 문헌 기준점은 ±20%)
-4. 의사결정 이력은 DD-009 형식으로 `docs/design_decisions.md`에 기록 (Issue / Decision / Status / Validation / Lessons Learned)
-5. 자동 검증은 `tests/test_isotherms.py::test_phase1_consistency` 가 commit 시 강제 (pytest 미통과 시 commit 보류)
+### Rule 6 — 파라미터 검증 게이트 (개정, DD-010)
+새로운 흡착·동역학 파라미터를 도입하거나 변경할 때:
+
+1. **등온식**: design point에서 ±50% 일관성 (문헌 기준점은 ±20%)
+   - 게이트: `apps/phase2_simulation/isotherms.py::sanity_check_at_design_point()`
+   - 자동검증: `tests/test_isotherms.py::test_phase1_consistency`
+2. **LDF**: dual-resistance 정통 형식 (`1/k = 1/k_macro + 1/k_internal`) + design point에서 사용자 정의 범위 일관성 + **MTZ 폭이 grid에서 5+ cells 차지**
+   - 게이트: `apps/phase2_simulation/ldf_kinetics.py::sanity_check_at_design_point()`
+   - 자동검증: `tests/test_ldf_kinetics.py::test_phase2_consistency`
+3. 새 파라미터 도입 시 **mechanistic vs empirical 구분 명시** docstring 필수
+4. **Empirical 파라미터**는 YAML에 `*_provenance` + `*_validity` 메타데이터 필수
+5. 통과 못 하면 코드 작성 중단, 사용자에게 보고
+6. 의사결정 이력은 DD-XXX 형식으로 `docs/design_decisions.md`에 기록 (Issue / Decision / Status / Validation / Known Limitations / Lessons Learned)
+7. PDE 격자 N의 변경은 항상 `check_grid_resolution()`을 27 case 극단(GHSV 1.5×)에서 PASS하는지 함께 검증
 
 ---
 
