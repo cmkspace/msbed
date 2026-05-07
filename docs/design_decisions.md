@@ -673,6 +673,84 @@ rhs.py를 conservative form으로 변경 시 두 metric이 일치할 것이나, 
 
 ---
 
+## DD-019: Cycle stabilization measurement (N_stable = 2) + Phase 5B final decision
+
+- **Date**: 2026-05-08
+- **Phase**: 2 (Step 5.4.2 multi-cycle TSA stabilization)
+- **Decision**: 5-cycle 시뮬레이션에서 **N_stable = 2** (안정화 cycle 2에서 첫 확립). 27-case projection 20.5 h → DD-015 매트릭스 **< 24 h 보류 영역** → **Phase 5B (analytical Jacobian) 보류 (skip)** 확정. Step 5.5 (run_sensitivity.py) 직접 진입.
+
+### Multi-Metric Stabilization Criterion (DD-019 sub-decision)
+2-consecutive 요구 + 6 metric all-must-pass + DD-018 noise floor 패턴 (단일 cycle 노이즈 false positive 회피):
+
+| Metric | Tolerance | Noise floor | Note |
+|---|---|---|---|
+| Residual q_h2o (avg over alumina) | rel_diff < 1 % | 1×10⁻⁶ mol/kg | Decision 2A |
+| Residual q_co2 (avg over 13X) | rel_diff < 1 % | 1×10⁻⁶ mol/kg | Decision 2A |
+| Adsorption outlet H2O shape | ∫|ΔC|dt / ∫C dt < 1 % | 1×10⁻¹² mol·s/m³ | L1 distance |
+| Adsorption outlet CO2 shape | same < 1 % | 1×10⁻¹² mol·s/m³ | L1 distance |
+| Cycle energy balance (legacy) | abs_diff < 0.5 %-pt | — | Phase-6 비교 convention |
+| Adsorption-start stiffness | rel_diff < 5 % | 1.0 | 더 변동성 큼, 완화 |
+
+### Measurement (5 cycles, 2026-05-08)
+
+| Cycle | Wall (min) | q_h2o avg | q_co2 avg | E_legacy % | stiff_start |
+|---|---|---|---|---|---|
+| 0 | 22.14 | 1.0e-12 | 2.9e-12 | 15.38 | 1.23e+08 |
+| 1 | 22.42 | ~0 | 3.2e-12 | 15.38 | 2.67e+06 |
+| 2 | 22.92 | ~0 | 1.6e-12 | 15.38 | 2.69e+06 |
+| 3 | 22.74 | 5.5e-14 | 1.5e-12 | 15.38 | 2.67e+06 |
+| 4 | 22.70 | ~0 | 3.0e-12 | 15.38 | 2.64e+06 |
+
+- 모든 cycle `overall_pass=True` (Step 5.4.1 hybrid 게이트 통과)
+- Cycle 1~4 wall time consistency: 22.4~22.9 min (±2 %), 추정 23 min과 일치
+- Stiffness regime change at cycle 0→1: **1.23e+08 → 2.67e+06 (45×↓)**.
+  물리 의미: clean bed (C=0, q=0)에서 ∂q*/∂C가 매우 가파름 → 큰 Jacobian eigenvalue. Steady-state recurrence (C ≈ feed at start of adsorption)에서는 평형 평면이 평탄하므로 stiffness 격감.
+- Pair stability: [(0,1) FAIL, (1,2) PASS, (2,3) PASS, (3,4) PASS] → 첫 2-consecutive PASS 윈도우는 (1,2)+(2,3) → **stabilization 확립 cycle = 2**
+
+Failed metric on (0, 1): outlet shape (cycle 0의 outlet은 첫 breakthrough wavefront, cycle 1는 steady state) + adsorption-start stiffness (45× change). 이는 **물리적으로 자연스러운 transient** (clean bed → steady-state regime).
+
+### Cooling Stiffness Monitoring (in-cycle, DD-017)
+모든 cycle에서 cooling phase chunk wall time이 heating avg의 1.5× 임계 근처에서 WARN 발생:
+- Cycle 2: 6 chunks WARN (4.6 s vs heating avg 3.06 s, ratio ~1.51)
+- Cycle 3: 2 chunks WARN
+- Cycle 4: 1 chunk WARN
+- 어떤 cycle에서도 2× hard abort 트리거 없음
+→ Cooling은 heating보다 약간 stiff한 transient를 가지나, 가설("cooling이 heating보다 안전한 stiffness regime")은 대체로 유효. 모니터링 인프라가 의도대로 작동.
+
+### 27-Case Wall Time Projection
+```
+N_stable      = 2
+cycle_wall_min = 22.78 (avg of cycles 1-4)
+total_27case_h = 27 × 2 × 22.78 / 60 = 20.5 hours
+```
+
+### Phase 5B Decision Matrix (DD-015) Application
+| Range | Decision | Our value |
+|---|---|---|
+| < 24 h | 보류 | **20.5 h** ← 적용 |
+| 24~50 h | 보류 (Option D 회피) | — |
+| 50~100 h | 선택 (사용자 결정) | — |
+| > 100 h | 필수 | — |
+
+**최종 결정: Phase 5B 보류 (skip).**
+
+근거 정량:
+- 27-case 20.5 h은 하룻밤(8 h) 안에 못 끝나지만 일과 시간(09-18시 9 h) + 야간(8 h) = 17 h로 충분히 1일 내 처리 가능
+- Phase 5B 분석 미분 도출 (~300 LOC + 검증 테스트)는 ~2일 작업 → 27-case 1회 실행 시간보다 김
+- DD-015 측정 기반: cycle stiffness는 adsorption만 stiff (steady-state에서 2.7e6, WARN band이지만 non-critical), heating/cooling은 OK band
+- Chunked restart 전략 (DD-017)이 BDF stepper history 이슈를 사실상 해결
+
+### Lessons Learned
+1. **Steady-state recurrence가 clean-bed start보다 훨씬 부드러움** — stiffness 1.23e8 → 2.67e6 (45×↓). 27-case sensitivity 시뮬레이션은 cycle 1+에서 steady-state로 유지되므로 평균 stiffness가 단일 cycle 측정값보다 낮을 것.
+2. **2-consecutive 요구**가 효과적 — pair (0,1) FAIL은 단일 transient (cycle 0이 clean-bed start)이며 false-positive였을 수 있으나 multi-metric + 2-consecutive로 정상적으로 (1,2) 시점에서 안정화 확립.
+3. **Noise floor 패턴 (DD-018)이 stabilization에서도 유효**: 모든 cycle의 q_h2o, q_co2가 1e-12 ~ subnormal 영역 → DEGENERATE flag로 PASS 처리. Heating에서 완전 desorption 결과를 정확히 반영.
+4. **Cooling 모니터링 작동**: in-cycle WARN 발생, 2× hard abort 미발생 → 가설 검증 도구로서 잘 동작.
+
+### Status
+**Resolved.** Phase 5B 보류 결정 locked. Step 5.5 (run_sensitivity.py 27 case 매트릭스) 진입 가능.
+
+---
+
 ## Template for New Decisions
 
 ```markdown

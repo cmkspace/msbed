@@ -1,0 +1,231 @@
+{
+  "n_cycles": 5,
+  "stabilization_cycle": 2,
+  "pair_stable_flags": [
+    false,
+    true,
+    true,
+    true
+  ],
+  "per_pair_metrics": [
+    {
+      "n": 1,
+      "n_minus_1": 0,
+      "result": {
+        "overall_stabilized": false,
+        "metrics": {
+          "residual_q_h2o": {
+            "rel_diff_pct": NaN,
+            "status": "PASS",
+            "flag": "DEGENERATE"
+          },
+          "residual_q_co2": {
+            "rel_diff_pct": NaN,
+            "status": "PASS",
+            "flag": "DEGENERATE"
+          },
+          "outlet_shape_h2o": {
+            "rel_diff_pct": 8253.569388550062,
+            "status": "FAIL",
+            "flag": "NORMAL"
+          },
+          "outlet_shape_co2": {
+            "rel_diff_pct": 11668568403.915436,
+            "status": "FAIL",
+            "flag": "NORMAL"
+          },
+          "energy_legacy_abs_diff": {
+            "abs_diff_pct": 0.0002736164592995749,
+            "status": "PASS",
+            "flag": "NORMAL"
+          },
+          "adsorption_start_stiffness": {
+            "rel_diff_pct": 97.83818951852037,
+            "status": "FAIL",
+            "flag": "NORMAL"
+          }
+        }
+      }
+    },
+    {
+      "n": 2,
+      "n_minus_1": 1,
+      "result": {
+        "overall_stabilized": true,
+        "metrics": {
+          "residual_q_h2o": {
+            "rel_diff_pct": NaN,
+            "status": "PASS",
+            "flag": "DEGENERATE"
+          },
+          "residual_q_co2": {
+            "rel_diff_pct": NaN,
+            "status": "PASS",
+            "flag": "DEGENERATE"
+          },
+          "outlet_shape_h2o": {
+            "rel_diff_pct": 2.7405616065846584e-07,
+            "status": "PASS",
+            "flag": "NORMAL"
+          },
+          "outlet_shape_co2": {
+            "rel_diff_pct": 1.4476791847821784e-07,
+            "status": "PASS",
+            "flag": "NORMAL"
+          },
+          "energy_legacy_abs_diff": {
+            "abs_diff_pct": 1.1280919487433039e-07,
+            "status": "PASS",
+            "flag": "NORMAL"
+          },
+          "adsorption_start_stiffness": {
+            "rel_diff_pct": 0.8931489360322706,
+            "status": "PASS",
+            "flag": "NORMAL"
+          }
+        }
+      }
+    },
+    {
+      "n": 3,
+      "n_minus_1": 2,
+      "result": {
+        "overall_stabilized": true,
+        "metrics": {
+          "residual_q_h2o": {
+            "rel_diff_pct": NaN,
+            "status": "PASS",
+            "flag": "DEGENERATE"
+          },
+          "residual_q_co2": {
+            "rel_diff_pct": NaN,
+            "status": "PASS",
+            "flag": "DEGENERATE"
+          },
+          "outlet_shape_h2o": {
+            "rel_diff_pct": 0.00018368813862026313,
+            "status": "PASS",
+            "flag": "NORMAL"
+          },
+          "outlet_shape_co2": {
+            "rel_diff_pct": 7.884056968535627e-08,
+            "status": "PASS",
+            "flag": "NORMAL"
+          },
+          "energy_legacy_abs_diff": {
+            "abs_diff_pct": 1.971222651775406e-07,
+            "status": "PASS",
+            "flag": "NORMAL"
+          },
+          "adsorption_start_stiffness": {
+            "rel_diff_pct": 0.9049803486375959,
+            "status": "PASS",
+            "flag": "NORMAL"
+          }
+        }
+      }
+    },
+    {
+      "n": 4,
+      "n_minus_1": 3,
+      "result": {
+        "overall_stabilized": true,
+        "metrics": {
+          "residual_q_h2o": {
+            "rel_diff_pct": NaN,
+            "status": "PASS",
+            "flag": "DEGENERATE"
+          },
+          "residual_q_co2": {
+            "rel_diff_pct": NaN,
+            "status": "PASS",
+            "flag": "DEGENERATE"
+          },
+          "outlet_shape_h2o": {
+            "rel_diff_pct": 0.00018387100585741376,
+            "status": "PASS",
+            "flag": "NORMAL"
+          },
+          "outlet_shape_co2": {
+            "rel_diff_pct": 9.772780505806151e-08,
+            "status": "PASS",
+            "flag": "NORMAL"
+          },
+          "energy_legacy_abs_diff": {
+            "abs_diff_pct": 9.38676134154548e-07,
+            "status": "PASS",
+            "flag": "NORMAL"
+          },
+          "adsorption_start_stiffness": {
+            "rel_diff_pct": 0.9101671876838797,
+            "status": "PASS",
+            "flag": "NORMAL"
+          }
+        }
+      }
+    }
+  ],
+  "summaries_compact": [
+    {
+      "cycle_number": 0,
+      "wall_time_s": 1328.3896036986262,
+      "overall_pass": true,
+      "residual_q_h2o_avg_alumina_mol_kg": 1.0472196233556472e-12,
+      "residual_q_co2_avg_13x_mol_kg": 2.885205087734534e-12,
+      "cycle_energy_legacy_pct": 15.383290952408693,
+      "cycle_energy_model_pct": 0.11384547394174516,
+      "adsorption_start_stiffness": 123480065.29327191,
+      "heating_start_stiffness": 60456761.86213593,
+      "cooling_end_stiffness": 67042408.31997907
+    },
+    {
+      "cycle_number": 1,
+      "wall_time_s": 1344.9689623004524,
+      "overall_pass": true,
+      "residual_q_h2o_avg_alumina_mol_kg": 5.0815e-320,
+      "residual_q_co2_avg_13x_mol_kg": 3.1710467128545483e-12,
+      "cycle_energy_legacy_pct": 15.383017335949393,
+      "cycle_energy_model_pct": 0.11187221364449783,
+      "adsorption_start_stiffness": 2669404.9940478574,
+      "heating_start_stiffness": 54318041.86921125,
+      "cooling_end_stiffness": 63657894.65372688
+    },
+    {
+      "cycle_number": 2,
+      "wall_time_s": 1375.117921600351,
+      "overall_pass": true,
+      "residual_q_h2o_avg_alumina_mol_kg": 7.46e-322,
+      "residual_q_co2_avg_13x_mol_kg": 1.5598444835492211e-12,
+      "cycle_energy_legacy_pct": 15.383017448758588,
+      "cycle_energy_model_pct": 0.11187464411313006,
+      "adsorption_start_stiffness": 2693461.617829943,
+      "heating_start_stiffness": 59410557.377434544,
+      "cooling_end_stiffness": 67634600.0589635
+    },
+    {
+      "cycle_number": 3,
+      "wall_time_s": 1364.1672897000099,
+      "overall_pass": true,
+      "residual_q_h2o_avg_alumina_mol_kg": 5.5215647175023444e-14,
+      "residual_q_co2_avg_13x_mol_kg": 1.4708728296291854e-12,
+      "cycle_energy_legacy_pct": 15.383017645880853,
+      "cycle_energy_model_pct": 0.11187368564538375,
+      "adsorption_start_stiffness": 2669086.319490486,
+      "heating_start_stiffness": 59640520.74828318,
+      "cooling_end_stiffness": 64118875.96069122
+    },
+    {
+      "cycle_number": 4,
+      "wall_time_s": 1361.9641567007639,
+      "overall_pass": true,
+      "residual_q_h2o_avg_alumina_mol_kg": 2.7427e-319,
+      "residual_q_co2_avg_13x_mol_kg": 3.0477901502134025e-12,
+      "cycle_energy_legacy_pct": 15.383018584556988,
+      "cycle_energy_model_pct": 0.11187142012659028,
+      "adsorption_start_stiffness": 2644793.171599524,
+      "heating_start_stiffness": 58592073.23805412,
+      "cooling_end_stiffness": 65609913.8518611
+    }
+  ],
+  "timestamp": "2026-05-08 05:10:36"
+}

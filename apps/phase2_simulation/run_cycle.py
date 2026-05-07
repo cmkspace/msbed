@@ -387,6 +387,7 @@ def _run_integrating_phase(
     chunk_s: float | None = None,
     monitor_stiffness: bool = False,
     heating_chunk_avg_wall_s: float | None = None,
+    trajectory_out: dict | None = None,
 ) -> tuple[np.ndarray, CyclePhaseResult]:
     """Integrate one ODE phase and collect metrics.
 
@@ -614,6 +615,16 @@ def _run_integrating_phase(
         chunk_stiffness_ratios=chunk_stiffnesses,
         chunk_s=chunk_s if chunk_s is not None else 0.0,
     )
+    if trajectory_out is not None:
+        offset_h2o = var_slice("C_h2o", n).start
+        offset_co2 = var_slice("C_co2", n).start
+        trajectory_out["t_s"] = combined_t.copy()
+        trajectory_out["C_h2o_outlet"] = combined_y[
+            offset_h2o + out_idx * N_VARS, :
+        ].copy()
+        trajectory_out["C_co2_outlet"] = combined_y[
+            offset_co2 + out_idx * N_VARS, :
+        ].copy()
     return y_out, phase
 
 
@@ -738,10 +749,14 @@ def run_single_cycle(
     initial_state: np.ndarray | None = None,
     cycle_number: int = 0,
     samples_per_hour: int = 60,
+    adsorption_trajectory: dict | None = None,
 ) -> tuple[np.ndarray, CycleResult]:
     """Run one full TSA cycle and return (final_state, CycleResult).
 
     `initial_state=None` ⇒ use a clean bed at adsorption-feed inlet T (15 °C).
+    `adsorption_trajectory` (optional dict) is mutated to receive the
+    adsorption phase outlet trajectory: keys ``t_s``, ``C_h2o_outlet``,
+    ``C_co2_outlet``. Used by run_cycle_repeated.py for shape comparison.
     """
     dbd = load_dbd()
     col = ColumnConfig.from_dbd(dbd)
@@ -781,7 +796,8 @@ def run_single_cycle(
 
     # Phase 1 — Adsorption
     state, ph = _run_integrating_phase(
-        "adsorption", state, op_ads, ADSORPTION_DURATION_S, col, samples_per_hour
+        "adsorption", state, op_ads, ADSORPTION_DURATION_S, col, samples_per_hour,
+        trajectory_out=adsorption_trajectory,
     )
     cycle.phases.append(ph)
 
