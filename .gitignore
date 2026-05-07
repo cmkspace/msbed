@@ -61,3 +61,10 @@ outputs/**/profile_animation_*.gif
 # Excel temp files
 ~$*.xlsx
 ~$*.xlsm
+
+# ============================================================
+# Claude Code (local environment, do NOT commit)
+# ============================================================
+.claude/settings.local.json
+.claude/cache/
+.claude/logs/
