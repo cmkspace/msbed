@@ -55,7 +55,7 @@
 - 한 번에 하나의 작업 결정만 확인 후 진행 (REX와 동일 패턴)
 - 큰 변경사항은 사용자 승인 후 진행
 
-### Rule 6 — 파라미터 검증 게이트 (개정, DD-010)
+### Rule 6 — 파라미터 검증 게이트 (개정, DD-010, DD-012)
 새로운 흡착·동역학 파라미터를 도입하거나 변경할 때:
 
 1. **등온식**: design point에서 ±50% 일관성 (문헌 기준점은 ±20%)
@@ -67,8 +67,13 @@
 3. 새 파라미터 도입 시 **mechanistic vs empirical 구분 명시** docstring 필수
 4. **Empirical 파라미터**는 YAML에 `*_provenance` + `*_validity` 메타데이터 필수
 5. 통과 못 하면 코드 작성 중단, 사용자에게 보고
-6. 의사결정 이력은 DD-XXX 형식으로 `docs/design_decisions.md`에 기록 (Issue / Decision / Status / Validation / Known Limitations / Lessons Learned)
-7. PDE 격자 N의 변경은 항상 `check_grid_resolution()`을 27 case 극단(GHSV 1.5×)에서 PASS하는지 함께 검증
+6. **사전 임계값(threshold)의 근거 명시 (Rule 6.6, DD-012)**:
+   1. 문헌 또는 측정 데이터 기반 근거 명시 (없으면 `"TBD — first measurement will set baseline"`)
+   2. 첫 측정 후 임계값과 측정값이 1자릿수 이상 차이나면 임계값 재검토
+   3. 임계값 변경 시 이유 + 측정값 + 문헌 근거를 DD에 기록
+   4. 보수적 임계값(stop early)이 잘못되면 false positive로 작업 지연 발생 — 문헌 데이터가 있을 때는 그 범위의 상한을 임계값으로 사용
+7. 의사결정 이력은 DD-XXX 형식으로 `docs/design_decisions.md`에 기록 (Issue / Decision / Status / Validation / Known Limitations / Lessons Learned)
+8. PDE 격자 N의 변경은 항상 `check_grid_resolution()`을 27 case 극단(GHSV 1.5×)에서 PASS하는지 함께 검증
 
 ---
 

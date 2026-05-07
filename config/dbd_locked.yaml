@@ -169,7 +169,23 @@ simulation:
   atol: 1.0e-9
   num_cycles_target: 10
   stabilization_tolerance_pct: 5.0
-  
+
+  # Stiffness thresholds (DD-012, calibrated 2026-05-07 from Step 4 measurement)
+  # Initial WARN=1e6 was too conservative (Rule 6.6); recalibrated against
+  # design-point measurement of 1.27e8 (within TSA literature range).
+  stiffness_thresholds:
+    warn_above: 1.0e8        # measurement standard, normal operation
+    stop_above: 1.0e10       # scipy BDF + analytical Jac upper feasible range
+    references:
+      - "Cavenati et al. 2004 (J. Chem. Eng. Data 49) — 1e7~1e8"
+      - "Casas et al. 2013 — 1e8 with BDF + analytical Jac"
+      - "scipy.integrate.solve_ivp BDF documentation: 1e10~1e12 range"
+    notes: |
+      Initial WARN=1e6 was too conservative.
+      Updated based on Phase 2 Step 4 measurement (1.27e8 at design point).
+      Physical origin: C↔q coupling amplifies effective LDF by ~30,000x via
+      ∂q*/∂C ≈ 28 m³/kg for 13X-CO₂ at design conditions.
+
   sensitivity_matrix:
     ghsv_factors: [0.5, 1.0, 1.5]
     regen_temp_C: [150, 180, 200]
