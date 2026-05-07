@@ -86,6 +86,20 @@ ODE/PDE 모드별 안정성 검증 시 다음 모든 차원에서 측정:
 
 BDF는 stepper history-dependent이므로 short test가 long test를 보장하지 않는다. Phase 5B 결정 등 critical path에서는 위 4 차원 모두에서 측정 데이터 확보 필수. Step 5.4.0b (preflight, uniform state, 1.5 h)는 PASS 였지만 Step 5.4.1 (cycle-realistic, 2 h, single-call)은 FAIL → Rule 6.7의 motivating example.
 
+### Rule 6.9 — Metric Design: Multi-Convention + Noise Floor (DD-018)
+
+Closure / balance metric 설계 시:
+
+1. **Noise floor 명시**: Numerical zero 영역에서 percentage metric은 의미 없다. Absolute threshold(예: 1×10⁻⁶ mol)를 두고, scale이 이 미만이면 'PASS with degenerate flag'로 처리. False fail 방지.
+2. **Multi-convention support**: Engineering convention (실험 측정과 동일) + Numerical convention (model 내부 일관성) 둘 다 측정. 단일 metric은 false positive/negative 위험.
+3. **Gate threshold는 convention-specific**: 같은 5 % gate가 conservative form과 primitive form에서 의미 다름. Spec 작성 시 convention 명시 필수.
+4. **실험 비교 가능 convention 보존**: Phase 6 실험 데이터와 비교 가능한 convention을 반드시 측정. Numerical-only는 비교 불가.
+
+Phase 2 사례 (DD-018):
+- Cooling mass closure 89 % false fail → noise floor 누락
+- Heating energy closure 11.6 % → conservative-vs-primitive form mismatch
+- 둘 다 metric design 문제, 모델 자체 문제 아님.
+
 ### Rule 6.8 — Hypothesis Falsification Priority (DD-017)
 
 복잡한 PDE/ODE 시스템에서 직관적 물리 가설은 자주 틀린다. Phase 2 누적 사례 4건 모두 가설이 부정확:

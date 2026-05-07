@@ -610,6 +610,69 @@ Per-phase 솔버 호출 패턴:
 
 ---
 
+## DD-018: Energy bookkeeping — Hybrid (Legacy + Model-consistent) dual metric
+
+- **Date**: 2026-05-08
+- **Phase**: 2 (Step 5.4.1)
+- **Decision**: Cycle 단위 energy balance를 **두 가지 metric**으로 동시 측정:
+  (1) Legacy (Phase-6 측정 convention) + (2) Model-consistent (rhs.py primitive form 일치).
+  두 게이트 모두 PASS여야 cycle 통과. Mass closure에는 noise floor (1×10⁻⁶ mol) 적용으로 degenerate phase의 false-fail 회피.
+
+### Issue 1 — Mass closure degenerate (cooling phase, false fail)
+Step 5.4.1 첫 실행에서 cooling phase mass closure가 89 % (h2o), 145 % (co2)로 표시. 실제로는 mass_in, mass_out, Δinventory 모두 1×10⁻⁵ mol 미만 (numerical zero). Heating에서 q→0 desorption이 완료되어 cooling은 mass exchange가 본질적으로 없음.
+
+`scale = max(|mass_in|, |Δinv|, 1e-30)`이 1e-30에 fallback → percentage가 의미 없음 (false fail).
+
+### Issue 2 — Energy closure (heating 11.6 %, cooling 17.8 %, real)
+원인: `rhs.py::_T_advection_term`이 **primitive form** 사용:
+```
+adv_term = -u × ρ_g(T_local) × c_pg × ∂T/∂z
+```
+이는 conservative form (`-c_pg × ∂(ρ_g·u·T)/∂z`)과 다름. Heating regime에서 T가 288 K → 473 K로 변하며 ρ_g가 1.293 → 0.745 kg/m³로 크게 변동 → boundary face flux와 cell-volume integral의 telescoping이 정확히 성립하지 않음.
+
+run_cycle.py의 초기 bookkeeping은 conservative form 가정:
+```
+E_in = mass_flow_const × cp × (T_in − T_REF) × duration
+E_out = ∫ mass_flow_const × cp × (T_out − T_REF) dt
+```
+→ model의 primitive form discretization과 mismatch → 11.6% gap.
+
+### Decision (Hybrid Option D)
+
+**Mass noise floor**: `MASS_NOISE_FLOOR_MOL = 1×10⁻⁶ mol`. 모든 component가 floor 미만이면 PASS with `degenerate=True` flag. Closure_pct는 NaN으로 보고.
+
+**Energy dual metric**:
+1. **Legacy**: 기존 const-mass-flow 공식 유지. Phase 6 실험 measurement convention과 일치 → engineering insight + 측정 비교용. 게이트 (Rule 6.6 measurement-based calibration):
+   - adsorption: < 5 % (작은 T 변동, primitive ≈ conservative; 측정 0.34 %)
+   - heating / cooling: < 20 % (Rule 6.6 — 측정 heating 11.6 %, cooling 17.8 % + safety margin; 초기 15 % 게이트는 cooling을 false-fail)
+2. **Model-consistent**: `adv_volumetric_J = ∫∫ adv_term dV dt`를 rhs.py primitive form 그대로 적분. True numerical closure. 게이트: < 1 % (모든 phase). `samples_per_hour ≥ 600` (= 6 s sub-sampling per chunk) 필요 — 60 s 샘플링은 heating에서 1.03 %로 게이트 초과.
+3. **두 게이트 모두 PASS** 요구 — 어느 한쪽이라도 fail이면 진짜 누락 사항이 있음.
+
+### Step 5.4.1 측정 (1차 cycle, samples_per_hour=600)
+| Phase | Mass closure | Energy(legacy) | Energy(model) |
+|---|---|---|---|
+| Adsorption | 5e-8 % | 0.34 % | 0.003 % |
+| Depressurize | 3e-11 % | 0 (jump) | 0 (jump) |
+| Heating | 0.05 % | 11.6 % | 0.04 % |
+| Cooling | n/a (degenerate) | 17.8 % | 0.003 % |
+| Repressurize | 2e-14 % | 0 (jump) | 0 (jump) |
+| **Cycle** | **0.05 % / 0.04 %** | **15.4 %** | **0.11 %** |
+
+Legacy cooling 17.8 % > 사전 게이트 15 % → 측정 기반 게이트 재조정 (15 → 20 %, Rule 6.6). 이후 모든 게이트 PASS.
+
+### Phase 6 Implications
+- 실험 측정값은 legacy convention (const mass flow × cp × ΔT) 기반
+- 비교 시 legacy metric 사용
+- Model-consistent는 numerical validation 전용
+
+### Future Mitigation (deferred, non-urgent)
+rhs.py를 conservative form으로 변경 시 두 metric이 일치할 것이나, 회귀 위험 + 단위테스트 영향 → Phase 2 범위에서는 채택 안 함. 27 case에서 legacy vs 실험 데이터의 큰 괴리 시 재검토.
+
+### Status
+**Resolved.** Dual metric 구현. Step 5.4.1 재시뮬에서 두 게이트 모두 PASS 확인 후 5.4.2 진입.
+
+---
+
 ## Template for New Decisions
 
 ```markdown

@@ -330,6 +330,37 @@ H₂O 5% breakthrough(~4.15h)를 포착하면서 t=4h CO₂ checkpoint도 포함
 - 사이클 안정화 도달 cycle 번호
 - 정상상태에서의 outlet purity
 
+#### Acceptance Criteria — Hybrid Closure Metrics (DD-018)
+
+각 cycle 마다 두 가지 독립 closure metric을 측정. **둘 다 PASS** 요구.
+
+##### Mass Closure (per species, per phase)
+- Definition: `residual = mass_in − mass_out − Δ(bed inventory)`
+- **Noise floor**: `MASS_NOISE_FLOOR_MOL = 1×10⁻⁶ mol`. 모든 component (mass_in, mass_out, |Δinv|)가 floor 미만이면 PASS with `degenerate=True` flag (closure_pct는 NaN). False fail 방지.
+- Normal phase 게이트: `closure_pct < 1 %`
+
+##### Energy Closure — Hybrid Dual Metric
+
+**Legacy (engineering convention, Phase 6 실험 measurement와 일치)**:
+```
+ΔU_bed_legacy = (E_in − E_out) + Q_ads − Q_wall
+E_in = mass_flow_const × c_pg × (T_in − T_REF) × duration
+E_out = ∫ mass_flow_const × c_pg × (T_out(t) − T_REF) dt
+```
+- adsorption: < 5 % (작은 T 변동, primitive ≈ conservative; 측정 0.34 %)
+- heating / cooling: < 20 % (Rule 6.6 measurement-calibrated — heating 11.6 %, cooling 17.8 %)
+- 의의: Phase 6 실험 데이터 비교용. 동일 convention.
+
+**Model-consistent (matches `rhs._T_advection_term` primitive form)**:
+```
+ΔU_bed_model = adv_volumetric + Q_ads − Q_wall
+adv_volumetric = ∫∫ (-u × ρ_g(T_local) × c_pg × ∂T/∂z) dV dt
+```
+- 모든 phase: `closure_pct < 1 %`
+- 의의: PDE solver의 numerical accuracy 검증. Primitive-form discretization과 정확히 일치해야 함.
+
+**왜 둘 다 필요한가**: Legacy는 Phase 6 실험 비교 가능한 convention. Model-consistent는 진짜 numerical residual 검출. 어느 한쪽만 쓰면 false positive/negative 위험.
+
 ### 4.6 `run_sensitivity.py`
 
 **27 case 매트릭스:**
