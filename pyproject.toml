@@ -83,6 +83,7 @@ select = [
     "N",    # pep8-naming
 ]
 ignore = [
+    "N802",  # allow non-snake-case method names for physical-symbol accessors (T, C_h2o, ...)
     "N803",  # allow non-snake-case args (physical variable names: T, P, etc.)
     "N806",  # allow non-snake-case local vars
 ]
