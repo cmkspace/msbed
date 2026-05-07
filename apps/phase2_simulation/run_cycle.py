@@ -60,6 +60,10 @@ JUMP_DURATION_S = 600.0                          # 10 min nominal (clock only)
 # diagnostic Step 5.4.0d showed completes the full 2 h heating in ~6 min wall.
 HEATING_CHUNK_S = 60.0
 COOLING_CHUNK_S = 60.0
+# Adsorption: single-call worked at design point (DD-014) but FAILED at
+# GHSV=0.5x in Step 5.5 (BDF stepper history). Chunked restart applied
+# uniformly for robustness across the 27-case operating envelope.
+ADSORPTION_CHUNK_S = 60.0
 
 P_HIGH_FALLBACK_PA = 6.01e5                      # adsorption pressure
 P_LOW_PA = 1.013e5                               # atmospheric (regen)
@@ -812,9 +816,10 @@ def run_single_cycle(
     cycle = CycleResult(cycle_number=cycle_number)
     state = initial_state
 
-    # Phase 1 — Adsorption
+    # Phase 1 — Adsorption (chunked restart, DD-020 robustness extension)
     state, ph = _run_integrating_phase(
         "adsorption", state, op_ads, ads_dur, col, samples_per_hour,
+        chunk_s=ADSORPTION_CHUNK_S,
         trajectory_out=adsorption_trajectory,
     )
     cycle.phases.append(ph)
