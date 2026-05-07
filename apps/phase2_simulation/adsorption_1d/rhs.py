@@ -415,15 +415,18 @@ def estimate_stiffness_ratio(
     op = params.op
 
     if y_test is None:
-        y_test = np.zeros(5 * n)
-        # Feed concentrations injected at the inlet cell (forward) or outlet cell (reverse)
         from .boundary import inlet_cell_index
+        from .state import N_VARS, cell_block_slice, var_slice
+
+        y_test = np.zeros(N_VARS * n)
+        # Layout B: T uniform across cells avoids 1/T → ∞ in ρ_g.
+        y_test[var_slice("T", n)] = op.T_in_K
+        # Inject feed concentrations at the inlet cell only.
         idx = inlet_cell_index(op, n)
         C_in = inlet_concentrations(op, op.T_in_K)
-        y_test[0 * n + idx] = C_in["h2o"]
-        y_test[2 * n + idx] = C_in["co2"]
-        # Uniform T at op.T_in_K (avoids 1/T → ∞ in ρ_g)
-        y_test[4 * n : 5 * n] = op.T_in_K
+        cell = cell_block_slice(idx)
+        y_test[cell.start + 0] = C_in["h2o"]   # C_h2o slot of cell idx
+        y_test[cell.start + 2] = C_in["co2"]   # C_co2 slot of cell idx
 
     n_state = y_test.size
 

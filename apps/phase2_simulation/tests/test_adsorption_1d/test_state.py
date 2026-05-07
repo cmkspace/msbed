@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from phase2_simulation.adsorption_1d import (
+    N_VARS,
     ColumnConfig,
     OperatingConditions,
     SimulationResult,
@@ -13,6 +14,7 @@ from phase2_simulation.adsorption_1d import (
     pack_state,
     state_size,
     unpack_state,
+    var_slice,
 )
 from phase2_simulation.ldf_kinetics import load_dbd
 
@@ -107,11 +109,12 @@ def test_operating_conditions_default_2a(op: OperatingConditions) -> None:
 # ---------------------------------------------------------------------------
 
 def test_simulation_result_accessors(col: ColumnConfig, op: OperatingConditions) -> None:
+    """Layout B: var accessors stride by N_VARS starting at the variable's offset."""
     g = build_grid(col)
     n_t = 5
     N = g.n_total
     rng = np.random.default_rng(seed=1)
-    y_full = rng.uniform(size=(5 * N, n_t))
+    y_full = rng.uniform(size=(N_VARS * N, n_t))
     res = SimulationResult(
         t_s=np.linspace(0, 1, n_t),
         y=y_full,
@@ -120,13 +123,31 @@ def test_simulation_result_accessors(col: ColumnConfig, op: OperatingConditions)
         success=True,
         message="OK",
     )
-    np.testing.assert_array_equal(res.C_h2o(), y_full[0 * N : 1 * N, :])
-    np.testing.assert_array_equal(res.q_h2o(), y_full[1 * N : 2 * N, :])
-    np.testing.assert_array_equal(res.C_co2(), y_full[2 * N : 3 * N, :])
-    np.testing.assert_array_equal(res.q_co2(), y_full[3 * N : 4 * N, :])
-    np.testing.assert_array_equal(res.T(), y_full[4 * N : 5 * N, :])
-    np.testing.assert_array_equal(res.outlet_C_h2o(), y_full[N - 1, :])
-    np.testing.assert_array_equal(res.outlet_C_co2(), y_full[3 * N - 1, :])
+    np.testing.assert_array_equal(res.C_h2o(), y_full[0::N_VARS, :])
+    np.testing.assert_array_equal(res.q_h2o(), y_full[1::N_VARS, :])
+    np.testing.assert_array_equal(res.C_co2(), y_full[2::N_VARS, :])
+    np.testing.assert_array_equal(res.q_co2(), y_full[3::N_VARS, :])
+    np.testing.assert_array_equal(res.T(), y_full[4::N_VARS, :])
+    # Outlet (last cell) values
+    np.testing.assert_array_equal(res.outlet_C_h2o(), y_full[N_VARS * (N - 1) + 0, :])
+    np.testing.assert_array_equal(res.outlet_C_co2(), y_full[N_VARS * (N - 1) + 2, :])
+
+
+def test_var_slice_layout_b() -> None:
+    """var_slice returns the proper stride/offset for each STATE_VAR."""
+    n = 4
+    y = np.arange(N_VARS * n, dtype=float)
+    # Layout B: y = [C_h2o[0], q_h2o[0], C_co2[0], q_co2[0], T[0], C_h2o[1], ...]
+    np.testing.assert_array_equal(y[var_slice("C_h2o", n)], [0, 5, 10, 15])
+    np.testing.assert_array_equal(y[var_slice("q_h2o", n)], [1, 6, 11, 16])
+    np.testing.assert_array_equal(y[var_slice("C_co2", n)], [2, 7, 12, 17])
+    np.testing.assert_array_equal(y[var_slice("q_co2", n)], [3, 8, 13, 18])
+    np.testing.assert_array_equal(y[var_slice("T", n)], [4, 9, 14, 19])
+
+
+def test_var_slice_rejects_unknown() -> None:
+    with pytest.raises(ValueError, match="unknown var"):
+        var_slice("xenon", 10)
 
 
 def test_simulation_result_shape_validation(

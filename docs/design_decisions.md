@@ -340,6 +340,52 @@ Fast mode 핵심: 13X-CO₂에서 `∂q*/∂C ≈ 28 m³/kg` (Cavenati Langmuir,
 
 ---
 
+## DD-013: Jacobian sparsity pattern — estimate vs measurement (Layout B)
+
+- **Date**: 2026-05-07
+- **Phase**: 2 (Simulation — Step 5.1)
+- **Decision**: Cell-major state layout (Layout B) + sparse Jacobian pattern with closed-form non-zero count `nnz = 5²·N + 6(N−1)`. **3,094** non-zeros at design grid N=100; pre-Step-5 estimate (3,900) was a 26% over-count (Rule 6.6 calibration).
+
+### Context
+Step 5.1 sparsity pattern test의 expected nnz를 사전에 ≈ 3,900으로 추정했으나, 실측은 **3,094** (오차 20.7%, ±20% STOP 임계값을 0.7% 초과). closed-form 분석 + FD numerical Jacobian 두 독립 방법이 모두 3,094를 확인 — 추정이 잘못되었음을 인정.
+
+### Root Cause of Estimation Error
+사전 추정은 off-diagonal 결합에서 **모든 5 변수가 spatial 결합**한다고 가정했으나, 실제로는 LDF의 local 성질에 의해 **q_h2o, q_co2는 inter-cell 결합이 없음**. 공간 미분이 적용되는 변수는 C_h2o, C_co2, T 3개뿐.
+
+### Variable Spatial-Coupling Classification (향후 표준 패턴)
+| Variable | Local term | Advection | Dispersion / Conduction |
+|---|---|---|---|
+| C_h2o | LDF source | yes (u·∂C/∂z) | yes (D_ax·∂²C/∂z²) |
+| q_h2o | yes (LDF) | NO | NO |
+| C_co2 | LDF source | yes | yes |
+| q_co2 | yes (LDF) | NO | NO |
+| T | adsorption heat | yes (advection) | yes (λ_ax·∂²T/∂z²) |
+
+→ Off-diagonal 결합 = (Advection or Dispersion에 yes인 변수) = **3개** (C_h2o, C_co2, T).
+
+### Closed-Form Formula
+```
+nnz(N) = 5² · N        (cell-internal 5×5 dense per cell)
+       + 2 · 3 · (N-1) (sub + super diagonal × 3 spatial vars)
+       = 25N + 6(N-1)
+```
+For N=100: nnz = 2500 + 594 = 3094 (sparsity 98.76%).
+
+### Validation Method
+1. **Closed-form formula** — analytical match in `test_pattern_nnz_matches_closed_form` for N ∈ {10, 50, 100, 200}.
+2. **FD numerical Jacobian** — `test_pattern_covers_numerical_jacobian`: at design state (feed at cell 0, T=T_in), every entry of the central-difference numerical Jacobian (above noise floor `1e-3 · max|J|`) is contained within the declared pattern. No false negatives.
+
+### Lessons Learned (Rule 6.6 application)
+- Rule 6.6의 ±20% 임계값은 **적절히 설정됨** — 실제 차이 20.7%로 STOP을 정확히 트리거.
+- LDF의 local 성질이 sparsity 패턴에 미치는 영향을 **사전 분류 표 없이** 추정 → over-count 발생. 향후 PDE 시스템에서는 위 4-column 분류 표를 먼저 작성한 뒤 추정해야 함.
+- 추정 오류 자체는 **실측이 잡아준 안전 패턴**: closed-form + FD 양방향 검증으로 정정 → DD-013 기록으로 후속 작업에 가이드.
+- **State vector layout이 sparsity 구조를 결정**: Layout B (cell-major)에서는 block-tridiagonal이 자연스러움. Layout A (variable-major)에서는 같은 패턴이 여러 N×N 블록으로 분산되어 BDF의 sparse 솔버 효율이 다소 떨어짐.
+
+### Status
+**Resolved** — Pattern locked, closed-form formula documented in `jacobian.py` docstring, future-estimation classification table added above. Step 5.2 (solver.py) 진입 가능.
+
+---
+
 ## Template for New Decisions
 
 ```markdown

@@ -10,8 +10,10 @@ import pytest
 from phase2_simulation.adsorption_1d import (
     ColumnConfig,
     OperatingConditions,
+    cell_block_slice,
     pack_state,
     unpack_state,
+    var_slice,
 )
 from phase2_simulation.adsorption_1d.boundary import (
     R_GAS,
@@ -156,8 +158,8 @@ def test_rhs_no_co2_uptake_in_alumina_cells(params: SimulationParams) -> None:
     n = params.grid.n_total
     rng = np.random.default_rng(seed=3)
     y = rng.uniform(size=5 * n) * 1.0e-3
-    # Force a non-trivial loading in the q_co2 slice
-    y[3 * n : 4 * n] = 0.5 * np.ones(n)
+    # Force a non-trivial loading in q_co2 across all cells
+    y[var_slice("q_co2", n)] = 0.5
     dydt = rhs_isothermal(0.0, y, params)
     _, _, _, dq_co2, _ = unpack_state(dydt, n)
     aa = params.grid.alumina_mask
@@ -169,7 +171,7 @@ def test_rhs_no_h2o_uptake_in_13x_cells(params: SimulationParams) -> None:
     n = params.grid.n_total
     rng = np.random.default_rng(seed=4)
     y = rng.uniform(size=5 * n) * 1.0e-3
-    y[1 * n : 2 * n] = 0.5 * np.ones(n)  # nontrivial q_h2o everywhere
+    y[var_slice("q_h2o", n)] = 0.5  # nontrivial q_h2o everywhere
     dydt = rhs_isothermal(0.0, y, params)
     _, dq_h2o, _, _, _ = unpack_state(dydt, n)
     zx = params.grid.thirteen_x_mask
@@ -199,9 +201,11 @@ def _global_balance_residual(
     dC_h2o, dq_h2o, dC_co2, dq_co2, _ = unpack_state(dydt, n)
 
     if species == "h2o":
-        dC, dq, C_idx = dC_h2o, dq_h2o, slice(0, n)
+        dC, dq = dC_h2o, dq_h2o
+        C_arr = y[var_slice("C_h2o", n)]
     else:
-        dC, dq, C_idx = dC_co2, dq_co2, slice(2 * n, 3 * n)
+        dC, dq = dC_co2, dq_co2
+        C_arr = y[var_slice("C_co2", n)]
 
     lhs = np.sum((eps_b * dC + (1.0 - eps_b) * rho_p * dq) * params.grid.dz_widths_m)
 
@@ -210,7 +214,6 @@ def _global_balance_residual(
     u_mag = superficial_velocity(op, op.T_in_K, A_xs)
     u_signed = signed_velocity(op, u_mag)
     C_in = inlet_concentrations(op, op.T_in_K)
-    C_arr = y[C_idx]
 
     if u_signed >= 0:
         F_in = u_signed * C_in[species]
@@ -290,7 +293,7 @@ def test_uniform_T_at_ambient_no_flow_state() -> None:
     p = SimulationParams.build(col, op_t_at_amb, D_ax=1.0e-4)
     n = p.grid.n_total
     y = np.zeros(5 * n)
-    y[4 * n : 5 * n] = p.T_amb_K
+    y[var_slice("T", n)] = p.T_amb_K
     dydt = rhs_full(0.0, y, p, isothermal=False)
     _, _, _, _, dTdt = unpack_state(dydt, n)
     # T = T_amb, no feed, no gradient → all source terms vanish
@@ -312,7 +315,7 @@ def test_wall_heat_loss_only_cools_bed() -> None:
     p = SimulationParams.build(col, op_hot, D_ax=1.0e-4)
     n = p.grid.n_total
     y = np.zeros(5 * n)
-    y[4 * n : 5 * n] = 400.0
+    y[var_slice("T", n)] = 400.0
     dydt = rhs_full(0.0, y, p, isothermal=False)
     _, _, _, _, dTdt = unpack_state(dydt, n)
     # Every cell cools (S_wall > 0 since T > T_amb)
@@ -338,7 +341,7 @@ def test_advection_cools_inlet_when_feed_colder() -> None:
     p = SimulationParams.build(col, op_cold_feed, D_ax=1.0e-4)
     n = p.grid.n_total
     y = np.zeros(5 * n)
-    y[4 * n : 5 * n] = 400.0
+    y[var_slice("T", n)] = 400.0
     dydt = rhs_full(0.0, y, p, isothermal=False)
     _, _, _, _, dTdt = unpack_state(dydt, n)
     # Advection wave cools cell 0 (only cell where T-gradient is non-zero in this state)
@@ -369,9 +372,10 @@ def test_adsorption_heat_release_warms_inlet_cell() -> None:
     from phase2_simulation.adsorption_1d.boundary import inlet_concentrations as _ic
     C_in = _ic(op_neutral, op_neutral.T_in_K)
     y = np.zeros(5 * n)
-    y[0] = C_in["h2o"]
-    y[2 * n] = C_in["co2"]
-    y[4 * n : 5 * n] = op_neutral.T_in_K        # = T_amb
+    cell0 = cell_block_slice(0)
+    y[cell0.start + 0] = C_in["h2o"]            # C_h2o at cell 0
+    y[cell0.start + 2] = C_in["co2"]            # C_co2 at cell 0
+    y[var_slice("T", n)] = op_neutral.T_in_K    # = T_amb
     dydt = rhs_full(0.0, y, p, isothermal=False)
     _, dq_h2o, _, _, dTdt = unpack_state(dydt, n)
     # H2O adsorbs in alumina cell 0 with positive driving force
@@ -397,7 +401,7 @@ def test_global_energy_balance_uniform_state() -> None:
     p = SimulationParams.build(col, op, D_ax=1.0e-4)
     n = p.grid.n_total
     y = np.zeros(5 * n)
-    y[4 * n : 5 * n] = 350.0
+    y[var_slice("T", n)] = 350.0
     dydt = rhs_full(0.0, y, p, isothermal=False)
     _, _, _, _, dTdt = unpack_state(dydt, n)
 
