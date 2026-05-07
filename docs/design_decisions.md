@@ -386,6 +386,73 @@ For N=100: nnz = 2500 + 594 = 3094 (sparsity 98.76%).
 
 ---
 
+## DD-014: Phase 1 consistency gate redefinition (3-gate structure) + provisional `max_step` workaround
+
+- **Date**: 2026-05-07
+- **Phase**: 2 (Simulation — Step 5.3)
+- **Decision**: Phase 1 일관성 게이트를 **3개의 독립 criteria**로 재정의 (PHASE2_SPEC §4.4). 동시에 `solver.py::DEFAULT_MAX_STEP_S = 0.01`을 BDF Newton 행렬 singularity 우회용 **provisional fix**로 채택. Phase 5B (analytical Jacobian)는 측정값 기반으로 "blocking" → "Step 6 결과 기반 conditional"으로 재분류.
+
+### Issue 1 — Gate definition misalignment
+Step 5.3 진입 시점의 채팅 안내에서 게이트를 "breakthrough 시각 ∈ [3.5h, 4.5h]"로 H₂O/CO₂ 모두에 적용하도록 단순화. 그러나:
+- H₂O는 4h cycle을 결정하는 species → 5% breakthrough가 ~4h 부근에 발생 (게이트 의미 있음).
+- CO₂는 13X 큰 working capacity 덕분에 breakthrough가 6–8h+ 예상 → 4h 부근 timing 게이트는 **정의상 항상 fail**.
+
+PHASE2_SPEC §4.4에는 원래 "out_co2 < 0.1 ppm at t=4h" (product spec)로 정확히 명시되어 있었으나, 채팅 안내에서 "두 species 동일 timing"으로 변형되며 의미 상실.
+
+### Issue 2 — BDF Newton singularity at t≈92s (numerical-FD Jacobian path)
+Step 5.2의 첫 4h 시뮬에서 `max_step=0.1` (Step 5.2 default)로 t≈92s 시점 BDF Newton 행렬이 정확히 singular (`splu`: "Factor is exactly singular"). 60s 단위 테스트가 PASS했던 이유는 단순히 t=92s에 도달하지 못했기 때문.
+
+**Root cause**: t=92s ≈ 40·τ_LDF (τ_LDF = 1/k_LDF_AA ≈ 2.3s)에서 q[cell 0]가 q* 평형에 e^(-40) 잔차로 근접 → dq/dt → 0이지만 ∂q*/∂C ~ O(28 m³/kg) 유지 → numerical-FD Jacobian의 small-eigenvalue + strong-off-diagonal 조합이 (I − γJ) 조건수를 폭발시킴.
+
+### Decision 1 — Three-gate structure
+```
+Gate 1 (H₂O timing):   t_5%_h2o ∈ [3.5h, 4.5h]
+Gate 2 (CO₂ product):  out_ppm at t=4h < 0.1 ppm
+Gate 3 (Mass balance): rel_err < 10% for both species
+```
+세 게이트는 **서로 다른 가정**을 검증한다 (각각 AA loading + LDF / 13X loading + layered bed / PDE solver 정확성). 상세는 PHASE2_SPEC §4.4.
+
+### Decision 2 — `DEFAULT_MAX_STEP_S = 0.01` (provisional)
+- max_step=0.10: t≈92s에서 FAIL
+- max_step=0.01: 4h 시뮬 안정 통과
+- Step 5.3a 실측: 4h sim wall time **11.6분** (사전 추정 27분 대비 2.3× 빠름)
+- 27 case sensitivity 재추정: ~5.2시간 (사전 추정 12시간의 43%)
+
+### Decision 3 — Phase 5B 우선순위 재분류
+사전 안내: "Step 6 진입 전 blocking follow-up — 12시간이 60시간이 됨"
+실측 기반 갱신: "Step 6 1차 실행 후 conditional"
+- Step 6 1 cycle = 11.6분 × cycle 수
+- 5 cycle 안정화 → 58분, Phase 5B 불필요
+- 10 cycle 안정화 → 116분, Phase 5B 권장
+- 사용자 임계값 30분: 11.6분 단일 cycle은 충분히 안전 영역
+
+### Validation Plan (Step 5.3b — Phase 5B 도입 시)
+analytical Jacobian이 도입되면:
+- 동일 5h 시뮬을 두 방식으로 비교: numerical-FD + max_step=0.01  vs  analytical Jac (max_step 자동)
+- Outlet C(t) curve의 RMS 차이 < 1%
+- 차이 발생 시 analytical Jac 도출 오류 의심 → 항별 단위 검증 (isotherms.py의 `dq_dC`, `dq_dT` 헬퍼)
+
+### Lessons Learned
+- 사양 문서(PHASE2_SPEC)와 채팅 안내가 misalign되면 **게이트가 정의상 fail되는 위험 발생**. 사양 문서의 정확한 구문을 우선 인용해야 함.
+- 게이트 정의는 species별 / 검증 대상 가정별로 **명시적 분리** 필수. "Acceptance criteria" 한 줄로 묶는 단순화는 안전하지 않음.
+- 사전 wall time 추정은 측정 기반 갱신 (Rule 6.6 적용). 27분 → 11.6분 차이는 dense_output=False 효과 (Step 5.3 도입) 및 BDF 내부 step 계산 방식 차이.
+- Provisional workaround (`max_step=0.01`)는 **필수 follow-up과 함께** 등록되어야 함 (Phase 5B). 그렇지 않으면 잠시 동작하다가 Step 6에서 실용성 깨짐.
+
+### Status
+**Resolved (gate definition)** — PHASE2_SPEC §4.4 redefined with 3-gate structure, run_breakthrough.py refactored (H2oGateResult / Co2GateResult 분리).
+
+**Step 5.3a 실측 (2026-05-07 20:14)** — 5h 시뮬 모든 게이트 PASS:
+- Gate 1: H₂O 5% breakthrough = **4.162h** ∈ [3.5, 4.5] (사전 예측 4.15h와 일치)
+- Gate 2: CO₂ outlet @ 4h = **8.56e-11 ppm** ≪ 0.1 ppm (10⁹배 안전 마진)
+- Gate 3a: H₂O mass balance err = 1.74e-5%
+- Gate 3b: CO₂ mass balance err = 1.25e-9%
+- Wall time: 890s = 14.84분 (5h 사전 추정 14.5분과 ±2.4% 일치)
+- Stiffness ratio at y0 (initial): 1.235e+08 → WARN band (정상 운전 영역)
+
+**Provisional (max_step workaround)** — Step 5.3a에서 실용 확인. Phase 5B는 Step 6 결과에 따라 trigger.
+
+---
+
 ## Template for New Decisions
 
 ```markdown

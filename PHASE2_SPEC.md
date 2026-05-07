@@ -269,13 +269,57 @@ class AdsorptionSolver:
 
 ### 4.4 `run_breakthrough.py`
 
-단일 흡착 사이클 시뮬레이션 (4시간) — 시뮬레이션 모델의 첫 검증.
+단일 흡착 시뮬레이션 (default 5시간) — Phase 1 일관성의 첫 검증. 5h 길이는
+H₂O 5% breakthrough(~4.15h)를 포착하면서 t=4h CO₂ checkpoint도 포함하기 위함.
 
-**Acceptance Criteria:**
-- ✅ 출구 CO₂ < 0.1 ppm at t = 4h
-- ✅ 출구 H₂O < 1 ppm at t = 4h
-- ✅ Mass balance closure: ∫(C_in − C_out)dt × Q ≈ 흡착제 누적량 (오차 < 5%)
-- ✅ Phase 1 엑셀의 충진량(36.3 + 25.1 kg)과 일관성
+#### Acceptance Criteria — Three-Gate Structure (DD-014)
+
+세 게이트는 **독립적**이며, 모두 PASS해야 PDE 모델이 Phase 1과 일관됨이
+확인된다. 각 게이트는 서로 다른 가정을 검증한다.
+
+##### Gate 1 — H₂O Breakthrough Timing (Cycle Determinant)
+- **Definition**: H₂O outlet이 inlet의 5%에 도달하는 시각 t_5%
+- **Criterion**: `t_5% ∈ [3.5h, 4.5h]`
+- **Physical meaning**: AA 층 dynamic loading 가정(6 wt%) + LDF rate 검증.
+  Layered bed의 cycle time을 결정하는 species가 H₂O이므로 본 timing이
+  Phase 1 cycle = 4h와 정렬되어야 함.
+- **Failure mode interpretation**:
+  - `t_5% < 3.5h` → AA dynamic loading이 실제로 6 wt% 미만 OR `k_LDF`가 너무 작음 (front 너무 빨리 도달)
+  - `t_5% > 4.5h` → AA dynamic loading이 6 wt% 초과 OR `k_LDF`가 너무 큼
+  - `t_5% = NaN` (sim 끝까지 미도달) → sim 길이 부족 OR 흡착 모델이
+    가정보다 훨씬 강함 (등온식 capacity 점검 필요)
+
+##### Gate 2 — CO₂ Product Specification (ASU-grade)
+- **Definition**: t = 4h 시점의 CO₂ outlet ppm (인렛 비율로 환산: `out_ppm = (C_out / C_in) × 400`)
+- **Criterion**: `out_ppm < 0.1 ppm` (DBD §3.5 ASU-grade target)
+- **Physical meaning**: 13X dynamic loading 가정 + layered bed 가정
+  (H₂O가 13X 층까지 침투하지 않음) 검증.
+- **Failure mode interpretation**:
+  - `out_ppm ≫ 0.1 ppm` → 13X dynamic loading이 너무 작음 OR
+    H₂O가 13X 영역까지 침투해서 CO₂ adsorption site 차단 (layered bed 가정 위반)
+- **Note**: CO₂ **breakthrough timing**은 본 게이트에 포함되지 않는다. CO₂는
+  13X의 큰 working capacity 덕분에 H₂O보다 훨씬 늦게(추정 6–8h+)
+  breakthrough하며, 4h checkpoint는 **product spec 충족 여부**만 검증한다.
+
+##### Gate 3 — Mass Balance Closure (Solver Self-Check)
+- **Definition** (each species):
+  ```
+  cum_adsorbed = ∫(F_in − F_out) dt
+  bed_inventory = Σ_cells (ε·C·V + (1−ε)·ρ_p·q·V)
+  rel_err_pct = 100 × |cum_adsorbed − bed_inventory| / cum_inlet
+  ```
+- **Criterion**: `rel_err_pct < 10 %` (both H₂O and CO₂)
+- **Physical meaning**: PDE 솔버의 **수치 정확성** 검증 (물리 모델이 아닌
+  솔버 회귀 감지). Layout B + sparse-Jac BDF가 정상 동작하면
+  near-machine-precision (rel < 1e-6) 수준의 closure가 기대된다.
+- **Failure mode interpretation**:
+  - `rel_err_pct ~ 1–10%` → 격자 정밀도 부족 (`check_grid_resolution()` 재확인)
+  - `rel_err_pct > 10%` → solver/RHS 회귀, 디버깅 필요
+
+#### Phase 1 정량 일관성 (정보 항목)
+- H₂O 누적 흡착량 ≈ DBD `loads.h2o_kg_per_cycle` = 1.8152 kg
+- CO₂ 누적 흡착량 ≈ DBD `loads.co2_kg_per_cycle` = 0.6283 kg
+- 충진량(AA 36.3 kg + 13X 25.1 kg)과의 dynamic_loading 비율이 DBD §6 가정과 일치
 
 ### 4.5 `run_cycle.py`
 

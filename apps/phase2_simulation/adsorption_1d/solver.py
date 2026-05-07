@@ -72,16 +72,26 @@ def initial_state_clean_bed(
     return y0
 
 
-DEFAULT_MAX_STEP_S = 0.1
+DEFAULT_MAX_STEP_S = 0.01
 """Default upper bound on integrator step (s).
 
-Empirically determined for the Phase 5A path (numerical-FD Jacobian via
-`jac_sparsity`). Without a max_step cap, BDF takes overly aggressive steps
-once the bed begins to load, and the Newton-iteration matrix becomes
-ill-conditioned around t ~ 30–60 s ("RuntimeError: Factor is exactly
-singular"). max_step=0.1 yields ~1000 accepted steps per 60 s with no
-stability issues at design conditions; smaller values work but cost more.
-Phase 5B (analytical Jacobian) is expected to relax this constraint.
+**Provisional value pending Phase 5B (DD-014).**
+
+The numerical-FD Jacobian path (current Phase 5A) hits a Newton-matrix
+singularity at t ≈ 92 s ≈ 40·τ_LDF on design-point clean-bed runs:
+q[cell 0] reaches q* at e^(-40) residual, ∂q*/∂C remains O(28 m³/kg) —
+the small-eigenvalue / strong-off-diagonal combination spikes the
+condition number of (I − γJ) and `splu` returns "Factor is exactly
+singular". Forcing `max_step ≤ 0.01` keeps BDF in a regime where the
+condition stays manageable.
+
+Performance impact:
+  - max_step=0.10: FAILS at t≈92 s
+  - max_step=0.01: 4 h sim ≈ 27 min wall (just inside Phase 5B trigger)
+
+Phase 5B (analytical Jacobian) is a blocking follow-up before Step 6 — once
+the analytical Jac removes FD-noise as the dominant conditioning issue,
+this constant returns to a permissive default. See DD-014.
 """
 
 
@@ -95,6 +105,7 @@ def simulate(
     atol: float = 1.0e-9,
     max_step: float | None = DEFAULT_MAX_STEP_S,
     t_eval: np.ndarray | None = None,
+    dense_output: bool = True,
     skip_stiffness_check: bool = False,
 ) -> tuple[SimulationResult, SolverMetrics]:
     """Integrate the adsorption ODE over `t_span` using BDF + sparse Jacobian.
@@ -152,7 +163,7 @@ def simulate(
         "rtol": rtol,
         "atol": atol,
         "jac_sparsity": pattern,
-        "dense_output": True,
+        "dense_output": dense_output,
     }
     if max_step is not None:
         kwargs["max_step"] = max_step
