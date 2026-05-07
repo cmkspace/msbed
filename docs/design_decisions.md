@@ -832,6 +832,59 @@ DD-015 매트릭스: 30 h < 50 h 보류 영역 (Phase 5B 불필요), 17 h work-d
 
 ---
 
+## DD-021: Default chunked restart for all integrating phases + Rule 6.7 강화 + Rule 6.10 신규
+
+- **Date**: 2026-05-08
+- **Phase**: 2 (Step 5.5)
+- **Decision**: 모든 integrating phase (adsorption, heating, cooling)에 **chunked restart를 default**로 적용. Single-call은 envelope 검증 후 exception. CLAUDE.md Rule 6.7 강화 + Rule 6.10 신규 (operating envelope validation 의무화).
+
+### Context — Pattern 2nd Occurrence
+Step 5.5 27-case sweep 시작 시 case 1 (GHSV=0.5×, T_regen=150 °C, cycle_time=3 h)의 **adsorption phase**에서 BDF "Factor is exactly singular" crash. DD-014와 같은 패턴이 design point(GHSV=1.0×)에서는 보이지 않다가 lower-flow operating point에서 발현.
+
+| Occurrence | Phase | Design point | Off-design point | Resolution |
+|---|---|---|---|---|
+| 1st (DD-017) | Heating | uniform-state preflight PASS | cycle-realistic state FAIL | Chunked restart |
+| 2nd (DD-021) | Adsorption | GHSV=1.0× single-call PASS | GHSV=0.5× single-call FAIL | Chunked restart |
+
+두 사례 모두 BDF stepper의 history-dependent 행동: 안정 영역에서 step size를 공격적으로 증가, transient 영역에서 conditioning 폭발. Lower flow → longer τ_residence → stepper history 누적 가능성 ↑.
+
+### Decision — Default Chunked
+
+```python
+# run_cycle.py
+ADSORPTION_CHUNK_S = 60.0      # newly added
+HEATING_CHUNK_S    = 60.0      # DD-017
+COOLING_CHUNK_S    = 60.0      # DD-017
+```
+
+모든 phase 균일 chunked. 한 번도 정당화되지 않은 single-call은 더 이상 사용하지 않음.
+
+### Wall Time Impact
+- Adsorption single-call (design): 11.6 min wall (DD-014, Step 5.3a)
+- Adsorption chunked (design extrapolation, heating의 3.13 min/h 기반): ~12.5 min wall
+- ~8 % slowdown — robustness 가치보다 작음
+
+27-case 추정:
+- Pre-fix: 30~45 h
+- Post-fix: 32~48 h
+- 여전히 DD-015 보류 영역 (< 50 h), Phase 5B 결정 변동 없음
+
+### Rule Updates
+- **Rule 6.7 강화**: Solver call pattern dimension에 "chunked is default" 명시. Single-call exception 조건 (envelope 4코너 + 30%+ 속도 + regression test) 추가.
+- **Rule 6.10 신규**: Operating envelope validation 의무화 (3개 변수 × min/max + 최소 4 corner case + envelope PASS 후 production).
+
+### Lessons Learned
+- "Design point PASS"는 "operating envelope PASS"를 보장하지 않음. 두 번 발생한 패턴은 systematic → 사전 정책 강화가 옳음.
+- BDF stepper history는 flow rate 의존적: lower flow = longer τ_residence = stepper history 누적 ↑.
+- Chunked restart의 small wall time cost (~8 %)는 robustness 가치보다 작다.
+- 두 번째 사례 발생 시 패턴 인식 + 사전 정책 강화가 옳음 (REX BLOCKER pattern).
+- "측정 후 일반화" (REX 패턴): 단일 측정 → 가설; 두 측정 → 패턴; 세 측정 → 정책.
+
+### Status
+**Resolved** — chunked default applied (commit `399551f`), Rule 6.7 강화 + Rule 6.10 신규 적용. 27-case sweep re-launched with chunked adsorption.
+
+---
+
 ## Template for New Decisions
 
 ```markdown

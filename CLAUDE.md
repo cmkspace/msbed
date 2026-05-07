@@ -75,16 +75,44 @@
 7. 의사결정 이력은 DD-XXX 형식으로 `docs/design_decisions.md`에 기록 (Issue / Decision / Status / Validation / Known Limitations / Lessons Learned)
 8. PDE 격자 N의 변경은 항상 `check_grid_resolution()`을 27 case 극단(GHSV 1.5×)에서 PASS하는지 함께 검증
 
-### Rule 6.7 — Mode Validation: Multi-Dimensional Stability (DD-017)
+### Rule 6.7 — Mode Validation: Multi-Dimensional Stability (DD-017, 강화 DD-021)
 
 ODE/PDE 모드별 안정성 검증 시 다음 모든 차원에서 측정:
 
 1. **Time scale**: 충분히 긴 sim duration (full mode duration, e.g. 2 h heating).
 2. **State context**: 실제 cycle 진입 시 state (이전 단계 결과, not 합성 uniform).
-3. **Solver call pattern**: chunked restart **vs** single-call 양쪽 모두 측정.
-4. **Hypothesis vs measurement**: 물리적 가설은 측정으로 검증. 가설과 측정이 모순되면 가설 즉시 폐기, 측정 기반 재구성.
+3. **Hypothesis vs measurement**: 물리적 가설은 측정으로 검증. 가설과 측정이 모순되면 가설 즉시 폐기, 측정 기반 재구성.
+4. **Solver call pattern (강화 DD-021)**: **Chunked restart는 모든 integrating phase의 DEFAULT**. Single-call은 측정으로 정당화될 때만 사용 (faster + stable across full operating envelope, not just design point).
 
-BDF는 stepper history-dependent이므로 short test가 long test를 보장하지 않는다. Phase 5B 결정 등 critical path에서는 위 4 차원 모두에서 측정 데이터 확보 필수. Step 5.4.0b (preflight, uniform state, 1.5 h)는 PASS 였지만 Step 5.4.1 (cycle-realistic, 2 h, single-call)은 FAIL → Rule 6.7의 motivating example.
+   Default 적용 사례:
+   - Adsorption: chunked (DD-014 + DD-021 confirmation)
+   - Heating: chunked (DD-017)
+   - Cooling: chunked (DD-017)
+
+   Single-call exception 조건 (모두 만족해야 함):
+   1. Operating envelope 4코너 case 모두 stable 측정
+   2. Wall time 30%+ 단축 측정값 확보
+   3. Regression test가 envelope 모두 커버
+
+BDF는 stepper history-dependent이므로 short test가 long test를 보장하지 않는다. Phase 5B 결정 등 critical path에서는 위 4 차원 모두에서 측정 데이터 확보 필수. Step 5.4.0b (preflight, uniform state, 1.5 h)는 PASS였지만 Step 5.4.1 (cycle-realistic, 2 h, single-call)은 FAIL, Step 5.5 (adsorption single-call at GHSV=0.5×)도 FAIL → Rule 6.7 강화의 두 motivating example.
+
+### Rule 6.10 — Operating Envelope Validation (DD-021)
+
+Design point에서 PASS는 모든 operating point PASS를 보장하지 않는다. 새 모듈/전략 도입 시 다음 단계 의무:
+
+1. **Design point 검증** (basic correctness).
+2. **Operating envelope 검증 (코너 case)**:
+   - Min/max GHSV (예: 0.5×, 1.5×)
+   - Min/max temperature (예: 150 °C, 200 °C regen)
+   - Min/max cycle time (예: 3 h, 5 h)
+   - 최소 4개 corner case (factorial corner 또는 worst-case combination)
+3. **Envelope 검증 PASS 후에만 production 적용**.
+
+Phase 2 누적 사례:
+- Step 5.4.0d: Heating preflight design state PASS, cycle reality state FAIL.
+- Step 5.5: Adsorption single-call design GHSV PASS, GHSV=0.5× FAIL.
+
+둘 다 envelope 검증 누락이 원인. 향후 Phase 6 데이터 분석 모듈, Phase 5B (도입 시) analytical Jacobian 검증, Phase 4 HAZOP 분석 등에도 동일 적용.
 
 ### Rule 6.9 — Metric Design: Multi-Convention + Noise Floor (DD-018)
 
