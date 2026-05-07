@@ -750,6 +750,7 @@ def run_single_cycle(
     cycle_number: int = 0,
     samples_per_hour: int = 60,
     adsorption_trajectory: dict | None = None,
+    case_overrides: dict | None = None,
 ) -> tuple[np.ndarray, CycleResult]:
     """Run one full TSA cycle and return (final_state, CycleResult).
 
@@ -757,6 +758,15 @@ def run_single_cycle(
     `adsorption_trajectory` (optional dict) is mutated to receive the
     adsorption phase outlet trajectory: keys ``t_s``, ``C_h2o_outlet``,
     ``C_co2_outlet``. Used by run_cycle_repeated.py for shape comparison.
+    `case_overrides` (optional dict) overrides the default cycle schedule for
+    sensitivity sweeps (Step 5.5). Recognised keys:
+
+      - ``adsorption_flow_nm3h`` (float): inlet flow at adsorption (default = DBD)
+      - ``adsorption_duration_s`` (float)
+      - ``heating_duration_s``    (float)
+      - ``cooling_duration_s``    (float)
+      - ``regen_T_K``             (float): heating inlet temperature
+      - ``regen_flow_nm3h``       (float): regen counter-current flow
     """
     dbd = load_dbd()
     col = ColumnConfig.from_dbd(dbd)
@@ -769,16 +779,24 @@ def run_single_cycle(
     y_h2o_feed = float(dbd["loads"]["h2o_inlet_ppm"]) * 1.0e-6
     y_co2_feed = float(proc["co2_in_ppm"]) * 1.0e-6
     T_feed_K = float(proc["temperature_in_C"]) + 273.15
-    flow_ads = float(proc["flow_nm3h"])
+    flow_ads_default = float(proc["flow_nm3h"])
+
+    overrides = case_overrides or {}
+    flow_ads = overrides.get("adsorption_flow_nm3h", flow_ads_default)
+    flow_regen = overrides.get("regen_flow_nm3h", FLOW_REGEN_NM3H)
+    T_regen = overrides.get("regen_T_K", T_REGEN_K)
+    ads_dur = overrides.get("adsorption_duration_s", ADSORPTION_DURATION_S)
+    heat_dur = overrides.get("heating_duration_s", HEATING_DURATION_S)
+    cool_dur = overrides.get("cooling_duration_s", COOLING_DURATION_S)
 
     op_ads = _build_op(
         "adsorption", flow_ads, P_high, T_feed_K, "forward", y_h2o_feed, y_co2_feed
     )
     op_heat = _build_op(
-        "heating", FLOW_REGEN_NM3H, P_LOW_PA, T_REGEN_K, "reverse", 0.0, 0.0
+        "heating", flow_regen, P_LOW_PA, T_regen, "reverse", 0.0, 0.0
     )
     op_cool = _build_op(
-        "cooling", FLOW_REGEN_NM3H, P_LOW_PA, T_COOL_K, "reverse", 0.0, 0.0
+        "cooling", flow_regen, P_LOW_PA, T_COOL_K, "reverse", 0.0, 0.0
     )
 
     # We need column-level constants accessible to jump phases without rebuilding params:
@@ -796,7 +814,7 @@ def run_single_cycle(
 
     # Phase 1 — Adsorption
     state, ph = _run_integrating_phase(
-        "adsorption", state, op_ads, ADSORPTION_DURATION_S, col, samples_per_hour,
+        "adsorption", state, op_ads, ads_dur, col, samples_per_hour,
         trajectory_out=adsorption_trajectory,
     )
     cycle.phases.append(ph)
@@ -810,7 +828,7 @@ def run_single_cycle(
 
     # Phase 3 — Heating (chunked restart, DD-017)
     state, ph_heat = _run_integrating_phase(
-        "heating", state, op_heat, HEATING_DURATION_S, col, samples_per_hour,
+        "heating", state, op_heat, heat_dur, col, samples_per_hour,
         chunk_s=HEATING_CHUNK_S,
     )
     cycle.phases.append(ph_heat)
@@ -821,7 +839,7 @@ def run_single_cycle(
         if ph_heat.chunk_walls_s else None
     )
     state, ph = _run_integrating_phase(
-        "cooling", state, op_cool, COOLING_DURATION_S, col, samples_per_hour,
+        "cooling", state, op_cool, cool_dur, col, samples_per_hour,
         chunk_s=COOLING_CHUNK_S,
         monitor_stiffness=True,
         heating_chunk_avg_wall_s=heating_chunk_avg,

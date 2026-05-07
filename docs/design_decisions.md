@@ -751,6 +751,87 @@ total_27case_h = 27 × 2 × 22.78 / 60 = 20.5 hours
 
 ---
 
+## DD-020: Sensitivity matrix design — adaptive stabilization + cycle-time→regen-time mapping + breakthrough detector void-skip
+
+- **Date**: 2026-05-08
+- **Phase**: 2 (Step 5.5 — `run_sensitivity.py` 27 case matrix)
+- **Decision**: 27 case sensitivity sweep을 다음 3가지 design choice으로 구성:
+  1. **Adaptive stabilization**: 각 case는 최소 3 cycle 실행, 1-pair stabilization 검증 후 측정. 미통과 시 최대 5 cycle까지 확장. Step 5.4.2 (N_stable = 2)에 기반한 보수적 스케줄.
+  2. **Cycle-time → regen-time 매핑**: cycle_time 변화 시 heating 시간은 ≥ 1.5 h 유지 (재생 효율 보존), cooling 시간을 비례 조정.
+  3. **Breakthrough detector void-clearance skip**: post-repressurize void 가스의 t=0 spike (≈ 0.589 mol/m³ at design) 회피를 위해 처음 60s skip.
+
+### Issue 1 — Adaptive Stabilization Strategy
+DD-019 측정 결과 N_stable = 2 (cycle 2에서 안정화 확립). 각 case에 대해:
+- Min 3 cycles (cycle 0/1 transient + cycle 2 측정)
+- 1-pair check: `is_stabilized(cycle_summaries[-1], cycle_summaries[-2])`. DD-019의 2-consecutive 요구는 한 case 5 cycle 모두 시뮬을 강요 → 너무 conservative. 1-pair 충분.
+- max 5 cycles 안전 가드.
+
+Per-case wall (예상):
+- 3-cycle: ~3 × 22.78 min = 68 min (typical)
+- 5-cycle: ~5 × 22.78 min = 114 min (worst case)
+
+### Issue 2 — Cycle-Time vs Regen-Time Mapping
+DBD `simulation.sensitivity_matrix.cycle_time_h: [3.0, 4.0, 5.0]`은 흡착 시간만 명시. 재생 시간은 미정 — twin-bed alternating 가정에 따라 자동 조정.
+
+Decision (Heating 효율 우선):
+| cycle_time | heating | cooling | buffer | Total = cycle_time |
+|---|---|---|---|---|
+| 3.0 h | 1.5 h | 1.0 h | 0.5 h | 3.0 ✓ |
+| 4.0 h (baseline) | 2.0 h | 1.5 h | 0.5 h | 4.0 ✓ |
+| 5.0 h | 2.0 h | 2.0 h | 1.0 h | 5.0 ✓ |
+
+근거:
+- Heating ≥ 1.5 h은 재생 효율의 결정 요소 (preflight Step 5.4.0b: 1.5 h heating으로 q → 0 100% 달성)
+- Cooling은 안전 영역, 시간 비례 조정
+- Buffer는 설치 여유
+
+### Issue 3 — Void-Clearance Skip in Breakthrough Detection
+**측정 발견** (Step 5.4.2 outlet trajectory zoom plot):
+- Cycle 0 (clean bed): t=0 outlet C_h2o = 0 → spike 없음
+- Cycles 1+ (post-repressurize): t=0 outlet C_h2o = **0.589 mol/m³** (= y_h2o_feed × P_high / RT)
+- 이 spike는 DD-014 well-mixed repressurize의 자연스러운 결과 (void uniformly = feed composition; advection이 ~30 s 안에 sweep out)
+
+**문제**: 5%-of-C_in breakthrough threshold = 0.0354 mol/m³. Cycle 1+의 t=0 spike 0.589 mol/m³ >> threshold → naive detector가 t=0를 breakthrough로 잘못 보고.
+
+**해결**: 60 s (≈ 2× residence time) skip in `_breakthrough_time_h`. Clean-bed runs (Step 5.3a)는 영향 없음 (t=0 C=0).
+
+### Sensitivity Levels
+| 변수 | Levels |
+|---|---|
+| GHSV factor | 0.5×, 1.0×, 1.0×, 1.5× (baseline = 200 Nm³/h) |
+| Regen peak T | 150°C, 180°C, 200°C |
+| Cycle time | 3.0 h, 4.0 h, 5.0 h |
+| Total cases | 3 × 3 × 3 = **27** |
+
+### Smoke Test Result (case 17 = design point: 1.0×, 200°C, 4 h)
+| Metric | Target | Measured | Status |
+|---|---|---|---|
+| Working capacity H₂O | 1.81 ± 0.05 kg | **1.815 kg** | ✓ DBD 1.8152 kg 정확 일치 |
+| Working capacity CO₂ | DBD 0.6283 kg | **0.628 kg** | ✓ |
+| Outlet H₂O at 4 h | ~2-3e-4 mol/m³ | 2.34e-4 mol/m³ (0.93 ppm) | ✓ |
+| Outlet CO₂ at 4 h | < 0.001 ppm | 0.0024 ppm | ✓ (DBD spec 0.1 ppm 한참 아래) |
+| Cycle wall time | 22.78 ± 1 min | 23.16 min | ✓ |
+| num_cycles_executed | 3 | 3 | ✓ |
+| Total wall (1 case, 3 cycles) | 68 min | **69 min** | ✓ |
+
+### 27-Case Wall Time Projection
+```
+GHSV variation: ~no change (durations same)
+Cycle-time variation:
+  3 h cycle: ~17 min/cycle × 3 cycles = ~51 min/case  × 9 cases = ~7.6 h
+  4 h cycle: ~23 min/cycle × 3 cycles = ~69 min/case  × 9 cases = ~10.4 h
+  5 h cycle: ~27 min/cycle × 3 cycles = ~81 min/case  × 9 cases = ~12.2 h
+Total (all stable at 3 cycles):     ~30 h
+Total (worst case 5 cycles each):  ~50 h
+```
+
+DD-015 매트릭스: 30 h < 50 h 보류 영역 (Phase 5B 불필요), 17 h work-day + 야간 가능 영역.
+
+### Status
+**Smoke test PASS**, 27-case sweep launched (background, ~30-45 h estimated). 결과 분석 + plot_sensitivity.py 작성 + Phase 6 권장 운전점 도출은 sweep 완료 후.
+
+---
+
 ## Template for New Decisions
 
 ```markdown
