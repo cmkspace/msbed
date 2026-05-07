@@ -453,6 +453,90 @@ analytical Jacobian이 도입되면:
 
 ---
 
+## DD-015: Cycle stiffness regime mapping (Phase 5B prioritization update)
+
+- **Date**: 2026-05-08
+- **Phase**: 2 (Step 5.4.0b heating preflight)
+- **Decision**: Cycle stiffness 병목은 **adsorption mode 단독**임이 측정 확인. Phase 5B (analytical Jacobian)의 cycle 전체 ROI는 adsorption-only 추정치보다 30~40 % 낮음. Phase 5B 결정 임계값 재조정.
+
+### Context
+DD-012의 stiffness 1.27e8 측정은 adsorption start 시점 단발 측정. Cycle 전체 4단계의 stiffness regime은 미지의 영역으로, Phase 5B 도입 ROI 평가에 빠진 데이터.
+
+### Measurement (heating preflight, Step 5.4.0b)
+| Mode / Time | Stiffness ratio | Band (DD-012 thresholds) |
+|---|---|---|
+| Adsorption start | 1.27e8 | WARN |
+| Heating start (q at adsorption-end loading) | 4.29e7 | border WARN/OK |
+| Heating mid (45 min) | 1.17e5 | OK |
+| Heating end (90 min) | 1.37e4 | OK (deep) |
+
+### Physical Interpretation
+- **Adsorption stiff**: low C → 큰 ∂q*/∂C from Toth/Langmuir; LDF source 강함; 강한 across-cell 결합.
+- **Heating relaxed**: q→0 평형 → LDF source 항 (k·(q*−q)) 줄어듦; ∂q*/∂T 결합도 작음 (q*가 이미 0 근처).
+- **Net cycle**: stiffness 병목은 adsorption 단독.
+
+### Phase 5B ROI Reassessment
+이전 추정 (DD-014): 27 case time → Phase 5B는 adsorption-only 12h 추정 기반.
+이번 측정 기반:
+- Cycle wall time = adsorption 11.6 min + heating ~5.9 min + cooling ~4.4 min = ~22 min
+- Adsorption 비중 = 11.6 / 22 = **53 %**
+- Phase 5B 도입 시 expected speedup은 adsorption-only에서 60~70 %로 추정되었으나, cycle 전체로는 약 30~40 % (heating/cooling은 이미 BDF sweet spot)
+
+### Updated Phase 5B Decision Matrix (Step 5.4.2 N_stable 측정 후 적용)
+```
+cycle_wall_min = 22 (preflight-extrapolated)
+total_27case_h = 27 × N_stable_cycle × 22 / 60
+
+if total_27case_h < 24:
+    Phase 5B 보류 (이전과 동일)
+elif 24 ≤ total_27case_h < 50:
+    Phase 5B 보류 — 5B 도입 시 expected savings ≈ 30~40 %
+                   × (27 × N × 22 × 0.53) ≈ 5~15h saving
+                   → 분석 미분 작업 비용(~2일) 대비 이득 작음
+elif 50 ≤ total_27case_h < 100:
+    Phase 5B 선택 — 사용자 결정
+else:  # > 100h
+    Phase 5B 필수
+```
+
+### Status
+**Decision pending Step 5.4.2 N_stable measurement.** Heating mode는 max_step=0.01 default 그대로 사용 (mode-specific override 불필요).
+
+---
+
+## DD-016: Equilibrium-to-dynamic loading ratio (Phase 6 calibration target)
+
+- **Date**: 2026-05-08
+- **Phase**: 2 (Step 5.4.0b 부수 측정)
+- **Decision**: Toth 평형 q* @ design point = **4.83 mol/kg**, DBD dynamic loading 가정 = 3.33 mol/kg (6 wt%). 비율 **1.45×**가 DD-005의 보수적 가정 안전 마진을 정량화.
+
+### Context
+Heating preflight에서 초기 상태 합성을 위해 isotherms.toth_h2o_alumina(P_h2o_design, T_ads) 호출. 결과 4.83 mol/kg이 DBD의 dynamic_loading_kg_per_kg = 0.06 (= 3.33 mol H₂O/kg AA) 보다 1.45× 큼.
+
+### Physical Meaning
+- **Toth equilibrium**: 열역학적 천장 (이론 최대 흡착)
+- **Dynamic loading**: 실제 운전에서 도달 가능한 working capacity (kinetic + axial dispersion 손실 반영)
+- **비율 1.45×**: DD-005 "보수적 6 wt% 가정"의 안전 마진 = 약 31 %
+- 만약 실제 측정 working capacity가 4.83 mol/kg에 가깝다면 DBD가 과도 보수적 (column 더 작게 가능)
+- 만약 3.33 mol/kg에 가깝다면 DBD가 적절히 보수적
+
+### Phase 6 Validation Target (Locked)
+실험 측정 working capacity는 다음 범위에 들어와야 함:
+```
+3.33 mol/kg (DBD assumption) ≤ q_measured ≤ 4.83 mol/kg (Toth equilibrium)
+```
+- `q_measured > 4.83` → Toth parameter 재캘리브레이션 필요 (현 isotherm 모델이 약함)
+- `q_measured < 3.33` → DBD assumption 비보수적, Phase 1 충진량 재검토 필요
+- 범위 내 → DD-005 가정 유효, 본 컬럼 sizing 적합
+
+### Side Note
+CO₂ 동등 비율: Langmuir 평형 q* @ design = 4.20 mol/kg vs DBD 3 wt% (= 0.682 mol/kg) → **6.16×** 마진. CO₂는 보수적 마진이 훨씬 큼. (사이즈가 H₂O bottleneck에 의해 결정되므로 CO₂ 마진은 무료로 따라옴.)
+
+### Status
+**Reference target locked.** Validation deferred to Phase 6 실험.
+
+---
+
 ## Template for New Decisions
 
 ```markdown

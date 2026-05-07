@@ -1,0 +1,38 @@
+{
+  "duration_h": 1.5,
+  "wall_time_s": 264.64993849990424,
+  "timeout_hit": false,
+  "n_steps": 90,
+  "avg_ms_per_step": 2936.138672221245,
+  "success": true,
+  "solver_message": "The solver successfully reached the end of the integration interval.",
+  "stiffness_samples": [
+    {
+      "label": "start",
+      "t_s": 0.0,
+      "ratio": 42900816.44675414,
+      "band": "OK"
+    },
+    {
+      "label": "mid",
+      "t_s": 2700.0,
+      "ratio": 117386.60456861793,
+      "band": "OK"
+    },
+    {
+      "label": "end",
+      "t_s": 5400.0,
+      "ratio": 13748.451343168144,
+      "band": "OK"
+    }
+  ],
+  "avg_q_h2o_initial_mol_kg": 4.83349950252338,
+  "avg_q_h2o_final_mol_kg": 6.131379723645395e-38,
+  "avg_q_co2_initial_mol_kg": 4.199375779380851,
+  "avg_q_co2_final_mol_kg": 1.0703936904497743e-64,
+  "desorption_h2o_reduction_pct": 100.0,
+  "desorption_co2_reduction_pct": 100.0,
+  "desorption_passes": true,
+  "duration_passes": true,
+  "stiffness_passes": true
+}
