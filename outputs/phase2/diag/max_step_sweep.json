@@ -1,0 +1,18 @@
+[
+  {
+    "max_step": 0.005,
+    "success": false,
+    "wall_time_s": 6.734499599901028,
+    "n_steps": 0,
+    "avg_ms_per_step": NaN,
+    "crash_message": "RuntimeError: Factor is exactly singular"
+  },
+  {
+    "max_step": 0.002,
+    "success": true,
+    "wall_time_s": 1880.1750697001116,
+    "n_steps": 119,
+    "avg_ms_per_step": 15799.729631092603,
+    "crash_message": ""
+  }
+]

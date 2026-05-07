@@ -75,6 +75,35 @@
 7. 의사결정 이력은 DD-XXX 형식으로 `docs/design_decisions.md`에 기록 (Issue / Decision / Status / Validation / Known Limitations / Lessons Learned)
 8. PDE 격자 N의 변경은 항상 `check_grid_resolution()`을 27 case 극단(GHSV 1.5×)에서 PASS하는지 함께 검증
 
+### Rule 6.7 — Mode Validation: Multi-Dimensional Stability (DD-017)
+
+ODE/PDE 모드별 안정성 검증 시 다음 모든 차원에서 측정:
+
+1. **Time scale**: 충분히 긴 sim duration (full mode duration, e.g. 2 h heating).
+2. **State context**: 실제 cycle 진입 시 state (이전 단계 결과, not 합성 uniform).
+3. **Solver call pattern**: chunked restart **vs** single-call 양쪽 모두 측정.
+4. **Hypothesis vs measurement**: 물리적 가설은 측정으로 검증. 가설과 측정이 모순되면 가설 즉시 폐기, 측정 기반 재구성.
+
+BDF는 stepper history-dependent이므로 short test가 long test를 보장하지 않는다. Phase 5B 결정 등 critical path에서는 위 4 차원 모두에서 측정 데이터 확보 필수. Step 5.4.0b (preflight, uniform state, 1.5 h)는 PASS 였지만 Step 5.4.1 (cycle-realistic, 2 h, single-call)은 FAIL → Rule 6.7의 motivating example.
+
+### Rule 6.8 — Hypothesis Falsification Priority (DD-017)
+
+복잡한 PDE/ODE 시스템에서 직관적 물리 가설은 자주 틀린다. Phase 2 누적 사례 4건 모두 가설이 부정확:
+
+- DD-009: Toth `b₀` 부호규약
+- DD-012: stiffness ratio 1.27e8 (사전 추정 1e6, 100× 어긋남)
+- DD-013: sparsity nnz 추정 3,900 vs 실측 3,094 (Rule 6.6 calibration)
+- DD-017: heating crash 원인 (가설=물리 stiffness, 실제=BDF stepper history)
+
+따라서:
+
+1. 가설은 진단의 **출발점이지 결론이 아님**.
+2. 측정 데이터가 가설과 모순되면 가설 **즉시 폐기**, 측정 기반 재구성.
+3. 진단 작업은 **측정 인프라 구축**이 우선 (예: Step 5.4.0d의 stiffness time profile).
+4. 가설 기반 quick fix를 측정 검증보다 우선하지 않음.
+
+이 Rule은 Phase 5B 도입 결정, 27-case 디버깅, Phase 6 실험 데이터 해석 등 모든 후속 단계에 적용.
+
 ---
 
 ## Current Phase: Phase 2 — 1D Simulation

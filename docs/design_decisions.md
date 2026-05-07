@@ -537,6 +537,79 @@ CO₂ 동등 비율: Langmuir 평형 q* @ design = 4.20 mol/kg vs DBD 3 wt% (= 0
 
 ---
 
+## DD-017: Heating crash root cause — BDF stepper history (NOT physics) + chunked-restart strategy
+
+- **Date**: 2026-05-08
+- **Phase**: 2 (Step 5.4.0d heating diagnostic)
+- **Decision**: Heating phase에 **chunked restart** 전략 적용 (chunk_s = 60 s, max_step = 0.01). Cooling도 동일 + in-cycle stiffness/wall-time 모니터링. Adsorption은 단일-call 유지 (DD-014, 검증됨). Phase 5B 도입 우선순위 추가 하락.
+
+### Original Hypothesis (REJECTED by measurement)
+"Cycle heating crash는 cycle-reality state에 존재하는 MTZ × leftover C × hot front 상호작용에서 비롯된 stiffness 사건이다."
+
+### Measurement (refutes hypothesis)
+Stiffness time profile (max_step=0.01, 60s chunks, full 2 h heating):
+
+| t (s) | stiffness ratio | band |
+|---|---|---|
+| 0 | 4.29 × 10⁷ | OK (border) |
+| 300 | ~10⁶ | (steepest decline) |
+| 1100 | ~10⁵ | OK |
+| 7200 | 1.35 × 10⁴ | OK (deep) |
+
+- **단조 감소**, peak 없음, MTZ × hot front singular event 없음
+- 122 chunks 모두 PASS, 6.25 min wall
+- T(z=L/2) trace: 15 °C → 175 °C 전이 t≈200~1100 s (heating front 정상 진행)
+- q_h2o max z 위치 z≈0 고정 (alumina 입구 — 흡착 자연스러운 결과)
+
+### max_step Single-Call Sweep
+| max_step | 결과 | Wall (2 h sim) |
+|---|---|---|
+| 0.01 | CRASH (cycle context) | ~21 min 전 crash |
+| 0.005 | CRASH @ t=6.7 s | 6.7 s |
+| 0.002 | PASS | 1880 s = 31.3 min |
+| **0.01 (chunked, 60 s)** | **PASS** | **374 s = 6.25 min** |
+
+### Real Root Cause
+**BDF stepper history-dependent behavior**:
+- 단일 long call에서 BDF는 안정 영역에서 step size를 공격적으로 증가
+- 그 후 transient(여기서는 hot front 진행 중 LDF source 변화)를 만나면 step이 너무 커서 Newton conditioning 폭발 → `splu`가 singular factor 반환
+- Chunked restart는 매 chunk가 fresh BDF init → 보수적 first_step → step adaptation이 chunk 내에서만 누적되어 안전
+
+### Decision
+Per-phase 솔버 호출 패턴:
+- **Adsorption**: single-call, max_step=0.01 (DD-014 검증)
+- **Heating**: chunked, chunk_s=60s, max_step=0.01
+- **Cooling**: chunked, chunk_s=60s, max_step=0.01 + in-cycle 모니터링
+  - Hard abort: stiffness > 1×10¹⁰ (DD-012 STOP) OR chunk wall > 2× heating chunk avg
+  - Warn (continue): stiffness > 1×10⁹ OR chunk wall > 1.5× heating avg
+  - 가설: cooling이 heating보다 약한 stiffness regime이라는 가설을 in-cycle 검증
+- **Depress/Repress**: instantaneous, no max_step
+
+### Performance Impact
+- 1 cycle wall ≈ adsorption 11.6 min + heating 6.25 min + cooling ~5 min = **~23 min**
+  (vs single-call max_step=0.002: 11.6 + 31.3 + ~25 = ~68 min — 3× 느림)
+- 27 case projection (chunked 적용):
+  - N_stable=3 → 31 h → DD-015 매트릭스 보류
+  - N_stable=5 → 52 h → 선택
+  - N_stable=7 → 72 h → 선택/필수 경계
+
+### Phase 5B Priority Update
+- Chunked restart의 wall-time 절감으로 Phase 5B의 marginal benefit 추가 감소
+- Chunked는 **저비용 코드 패치 (~30 LOC)**, Phase 5B는 **분석 미분 도출 (~300 LOC) + 검증**
+- 잠정 결론: **Phase 5B 보류, Step 5.4.2 N_stable 측정 후 최종**
+
+### Lessons Learned
+1. **가설은 진단의 출발점이지 결론이 아님** — 측정과 모순되면 즉시 폐기 (Rule 6.8).
+2. **BDF stepper history**가 stiffness 자체와 별개의 실패 모드 — short test가 long test를 보장하지 않음.
+3. **Chunked restart**는 다양한 stiffness regime이 시간에 걸쳐 나타나는 long simulation에 일반적으로 더 안전.
+4. Stiffness time profile 측정이 max_step sweep만으로 얻기 어려운 진단 정보 제공 — 이번 발견은 profile + sweep 비교로만 가능.
+5. Phase 2 누적 가설-vs-측정 사례 4건 모두 가설이 부정확했음 (Toth b₀, stiffness 1.27e8, sparsity nnz, heating crash 원인) → Rule 6.8로 일반화.
+
+### Status
+**Resolved.** Chunked restart locked. Step 5.4.1 (단일 cycle)에서 검증 후 5.4.2 진입.
+
+---
+
 ## Template for New Decisions
 
 ```markdown
