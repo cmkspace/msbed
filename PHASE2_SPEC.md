@@ -84,8 +84,13 @@ b   = b0 · exp[ΔH/(R·T_ref)·(T_ref/T − 1)]
 #### 2.2.2 CO₂ on Zeolite 13X — Langmuir Equation
 ```
 q* = q_m·b·P / (1 + b·P)
-b  = b0 · exp(−ΔH/(R·T))
+b  = b0 · exp(+ΔH/(R·T))   # ΔH stored as positive magnitude (DD-009)
 ```
+
+> **Sign convention (DD-009)**: ΔH is stored as a positive magnitude in J/mol.
+> For exothermic adsorption b must increase as T decreases — the `+` sign
+> above produces this. The earlier `−` form in v1.0 of this spec was a
+> sign error and is corrected here (2026-05-07).
 
 **파라미터 (문헌값)**
 | 파라미터 | 값 | 출처 |

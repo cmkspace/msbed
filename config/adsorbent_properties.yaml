@@ -10,24 +10,43 @@
 alumina_h2o_toth:
   reference: "Serbezov & Sotirchos (1998), Desai et al. (1992)"
   notes: |
-    These parameters are placeholder values. Final values must be
-    extracted from referenced literature in Phase 2 Week 1.
-  
+    Provisional values calibrated against the Phase 1 DBD design point
+    (P_h2o=1697 Pa, T=298.15 K, expected loading 6 wt%) per DD-009.
+    Pending direct fitting from Serbezov (1998) PDF in Phase 2 Week 2.
+
   # Saturation capacity
-  q_m0_mol_kg: 13.0              # TODO: verify from Serbezov 1998
-  chi_qm: 0.0                    # T-dependence of q_m (often 0)
+  q_m0_mol_kg: 13.0              # provisional, within typical AA range 7-22
+  chi_qm: 0.0                    # T-dependence of q_m (set to 0 for now)
   T_ref_K: 298.15
-  
-  # Affinity parameter
-  b0_Pa_inv: 1.0e-9              # TODO: verify
-  delta_H_J_mol: 54000           # heat of adsorption (J/mol)
-  
+
+  # Affinity parameter — calibrated value (was 1.0e-9 placeholder, see DD-009)
+  b0_Pa_inv: 1.0e-3              # CALIBRATED: yields 6.43 wt% at design point
+  delta_H_J_mol: 54000           # heat of adsorption magnitude (J/mol, +ve)
+
   # Heterogeneity parameter
-  t_heterogeneity: 0.45          # TODO: verify (typical 0.3~0.6)
-  
+  t_heterogeneity: 0.45          # provisional (typical AA range 0.3~0.6)
+
   # Validity range
   T_range_K: [273, 423]
   P_h2o_range_Pa: [10, 5000]
+
+  # Sign convention for Van't Hoff temperature dependence:
+  #   b(T) = b0 · exp[ΔH / (R · T_ref) · (T_ref/T − 1)]
+  # ΔH stored as positive magnitude → b increases as T decreases (exothermic).
+  vant_hoff_form: "b(T) = b0 * exp(dH/(R*T_ref) * (T_ref/T - 1))"
+
+  # Calibration metadata (DD-009)
+  provisional_calibration:
+    calibrated_against: "Phase 1 DBD: 6 wt% dynamic loading at design point"
+    calibration_date: "2026-05-07"
+    design_point:
+      P_h2o_Pa: 1697
+      T_K: 298.15
+    expected_q_wt_pct: 6.0
+    tolerance_pct: 50
+    last_validated_b0: 1.0e-3
+    status: "PROVISIONAL — pending literature fitting (Serbezov 1998)"
+    enforced_by: "phase2_simulation.isotherms.sanity_check_at_design_point()"
 
 # ============================================================
 # Zeolite 13X (CO₂ adsorption)
@@ -36,17 +55,36 @@ alumina_h2o_toth:
 zeolite_13x_co2_langmuir:
   reference: "Cavenati, Grande, Rodrigues (2004)"
   citation: "J. Chem. Eng. Data 49, 1095-1101 (2004)"
-  
+
   # Saturation capacity
   q_m_mol_kg: 5.5
-  
-  # Affinity parameter (temperature-dependent via van't Hoff)
-  b0_Pa_inv: 2.4e-7              # pre-exponential
-  delta_H_J_mol: 36000           # heat of adsorption (J/mol)
-  
+
+  # Affinity parameter — calibrated value (was 2.4e-7 placeholder, see DD-009)
+  b0_Pa_inv: 4.0e-9              # CALIBRATED: yields 2.47 mol/kg at 298 K, 100 Pa (Cavenati 2004 ±20%)
+  delta_H_J_mol: 36000           # heat of adsorption magnitude (J/mol, +ve)
+
   # Validity range
   T_range_K: [298, 348]
   P_co2_range_Pa: [100, 500000]
+
+  # Sign convention for Van't Hoff temperature dependence:
+  #   b(T) = b0 · exp(+ΔH / (R · T))
+  # ΔH stored as positive magnitude → b increases as T decreases (exothermic).
+  # NOTE: PHASE2_SPEC §2.2.2 was corrected from `exp(-dH/RT)` to this form (DD-009).
+  vant_hoff_form: "b(T) = b0 * exp(+dH/(R*T))"
+
+  # Calibration metadata (DD-009)
+  provisional_calibration:
+    calibrated_against: "Cavenati 2004 reference point: q=2.5 mol/kg at 298 K, 100 Pa CO2"
+    calibration_date: "2026-05-07"
+    reference_point:
+      P_co2_Pa: 100
+      T_K: 298.15
+    expected_q_mol_kg: 2.5
+    tolerance_pct: 20
+    last_validated_b0: 4.0e-9
+    status: "PROVISIONAL — pending direct fit from Cavenati 2004 PDF"
+    enforced_by: "phase2_simulation.isotherms.sanity_check_at_design_point()"
 
 # ============================================================
 # Mass Transfer Coefficients (LDF via Glueckauf)
@@ -93,10 +131,14 @@ molecular_diffusivity_reference:
   notes: "Use Fuller equation for actual T, P scaling"
 
 # ============================================================
-# TODO List for Phase 2 Week 1
+# TODO List for Phase 2 Week 2 (after provisional calibration in Week 1)
 # ============================================================
+# Initial provisional calibration completed 2026-05-07 (DD-009):
+#   - Toth b0     1.0e-9  → 1.0e-3 Pa^-1  (6.43 wt% at design point)
+#   - Langmuir b0 2.4e-7  → 4.0e-9 Pa^-1  (2.47 mol/kg at Cavenati ref)
+#   - Sign convention for Van't Hoff (b = b0·exp(+ΔH/RT)) corrected
 todo:
-  - "Verify Alumina Toth parameters from Serbezov & Sotirchos (1998)"
-  - "Cross-check 13X Langmuir parameters at 25°C, 400 ppm CO₂"
+  - "Direct PDF fit of Alumina Toth from Serbezov & Sotirchos (1998)"
+  - "Direct PDF fit of 13X Langmuir from Cavenati, Grande, Rodrigues (2004)"
   - "Add competitive isotherm if Phase 2 results suggest interaction effects"
   - "Validate LDF values against Glueckauf-Coates dual-resistance if simple LDF inadequate"

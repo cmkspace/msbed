@@ -126,6 +126,80 @@
 
 ---
 
+## DD-009: 등온식 파라미터 provisional 보정 + Van't Hoff 부호규약 정정
+
+- **Date**: 2026-05-07
+- **Phase**: 2 (Simulation — Week 1)
+- **Decision**: Toth(AA-H₂O) 및 Langmuir(13X-CO₂) 등온식 파라미터를 DBD/문헌 기준점에 맞춰 provisional 보정. Van't Hoff 부호규약을 양수 ΔH magnitude 컨벤션으로 통일.
+
+### Issue
+초기 `config/adsorbent_properties.yaml`의 placeholder 값들이 **물리적으로 비합리적인 결과**를 산출:
+
+| 등온식 | 기존 b0 | 설계조건 q | 기대값 | 괴리 |
+|---|---|---|---|---|
+| Toth (AA-H₂O) | 1.0e-9 Pa⁻¹ | 0.286 wt% @ 1697 Pa, 298 K | DBD 6 wt% | ~21× 미달 |
+| Langmuir (13X-CO₂) | 2.4e-7 Pa⁻¹ | 5.45 mol/kg @ 240 Pa, 298 K | Cavenati ~2-3 mol/kg | ~2× 과다 |
+
+또한 `PHASE2_SPEC.md §2.2.2`의 Langmuir 식 `b = b0·exp(−ΔH/(R·T))`은 ΔH가 양수(=흡착열 magnitude)로 저장될 때 **온도 방향이 반대**가 됨 (cold→b 작아짐, exothermic과 모순).
+
+### Alternatives
+- **(A) 보정 진행 + 부호규약 정정** (제안값: Toth b0=1.0e-3, Langmuir b0=4.0e-9, 부호 `+ΔH/RT`)
+- **(B) Toth만 보정, Langmuir는 YAML 그대로 + saturation 동작 수용**
+- **(C) 두 b0 모두 placeholder 유지 + 테스트 정성검증으로 완화**
+
+### Choice
+**(A)** — 두 등온식 모두 보정, 부호규약 정정.
+
+### Rationale
+- (B), (C)는 PDE solver의 입력으로 비물리적 값을 통과시킬 위험이 있음 → Phase 1 일관성 검증(필수 게이트) 단계에서 더 큰 문제 누적 가능.
+- 보정값이 Phase 1 DBD(AA 6 wt%) 및 Cavenati 2004 (13X 100 Pa→2.5 mol/kg) 두 독립 기준점과 정합 → 정량적 근거 확보.
+- 부호 오류는 명백한 결함이므로 분리 처리 비효율, 한 번에 정정.
+
+### Implementation
+1. `config/adsorbent_properties.yaml`:
+   - `alumina_h2o_toth.b0_Pa_inv`: **1.0e-9 → 1.0e-3 Pa⁻¹** (provisional)
+   - `zeolite_13x_co2_langmuir.b0_Pa_inv`: **2.4e-7 → 4.0e-9 Pa⁻¹** (provisional)
+   - 두 섹션에 `provisional_calibration` 메타데이터 블록 추가 (calibration date, design point, expected q, tolerance, status)
+2. `apps/phase2_simulation/isotherms.py`:
+   - Toth, Langmuir 함수 모두 양수 ΔH magnitude 컨벤션으로 구현
+   - `sanity_check_at_design_point()` 함수 — 자동 검증 게이트
+   - 함수 docstring에 부호규약 명시
+3. `docs/PHASE2_SPEC.md §2.2.2`: `exp(−ΔH/RT)` → `exp(+ΔH/RT)` 정정 + 주석 추가
+4. `apps/phase2_simulation/tests/test_isotherms.py`:
+   - `test_known_data_point_cavenati`: 298 K, 100 Pa → 2.0–3.0 mol/kg
+   - `test_known_data_point_aa_wt_pct`: 298 K, 1697 Pa → 3.0–9.0 wt%
+   - `test_phase1_consistency`: sanity_check 자동 호출
+   - `test_sanity_check_diagnoses_bad_*`: 실패 진단 메시지 동작 검증
+5. `CLAUDE.md`에 Rule 6 추가 (등온식 파라미터 검증 게이트).
+
+### Status
+**PROVISIONAL — pending literature fitting in Phase 2 Week 2.**
+
+### Validation
+- 1차 검증: `test_known_data_point_cavenati` (Cavenati 2004 ±20%) + `test_phase1_consistency` (DBD 6 wt% ±50%) 통과로 확보.
+- 2차 검증: Phase 2 Week 2에 Serbezov(1998) 및 Cavenati(2004) PDF에서 직접 파라미터 추출 후 v1.1로 갱신 예정.
+- breakthrough 시뮬 결과가 Phase 1 엑셀 (4h 사이클, 충진량 36.3+25.1 kg)과 일치하는지가 최종 통합검증 (Phase 2 Week 2 게이트).
+
+### Impact
+- Phase 2 모든 PDE solver 입력이 물리적으로 일관된 등온식 파라미터 사용.
+- 이후 등온식 파라미터 변경 시 `sanity_check_at_design_point()`이 자동 게이트로 동작 (CLAUDE.md Rule 6).
+- 추후 PDF 직접 fitting 결과가 보정값과 ±10% 이내면 v1.1로 lock, 그렇지 않으면 Phase 1 일관성 재검토 필요.
+
+### Lessons Learned
+- Initial b0 placeholder (1e-5) gave physically reasonable-looking
+  intermediate values (Henry's K_H ~1.3e-4 mol/kg/Pa) but was 10× off
+  in final wt% due to Toth's nonlinear saturation behavior in the
+  `1+(bP)^t` denominator. Linear extrapolation from `b·P` intuition
+  fails for Toth — must compute the full equation at the design point.
+- Sign-convention errors in Van't Hoff forms produce *plausible-looking*
+  numbers at one temperature but invert the temperature direction.
+  The bug only surfaces under multi-T testing (regen vs adsorption).
+- All future placeholder isotherm parameters MUST be sanity-checked at
+  the DBD design point before code commit (now enforced by
+  `test_phase1_consistency` and `CLAUDE.md` Rule 6).
+
+---
+
 ## Template for New Decisions
 
 ```markdown
